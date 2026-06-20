@@ -1,7 +1,7 @@
 import { prefetchRouteComponents } from '../router'
 import { musicTracks } from './music'
 
-const DEFAULT_MIN_SPLASH_MS = 10000
+const DEFAULT_MIN_SPLASH_MS = 1000
 const MUSIC_PRELOAD_COUNT = 2
 
 let warmupPromise: Promise<void> | null = null
