@@ -13,6 +13,7 @@ const isReady = ref(false)
 const isLoading = ref(false)
 const pendingPlayAfterLoad = ref(false)
 const rotationDeg = ref(0)
+const loadingTrackId = ref<string | null>(null)
 const preloadedTrackId = ref<string | null>(null)
 const requestedTrackId = ref<string | null>(null)
 
@@ -113,6 +114,12 @@ function syncTrack() {
     return
   }
 
+  if (hasActiveTrackRequest()) {
+    requestedTrackId.value = currentTrack.value.id
+    pendingPlayAfterLoad.value = isPlaying.value || pendingPlayAfterLoad.value
+    return
+  }
+
   const shouldResumePlayback = isPlaying.value || pendingPlayAfterLoad.value
 
   preloadToken += 1
@@ -122,6 +129,7 @@ function syncTrack() {
   currentTime.value = 0
   duration.value = 0
   preloadedTrackId.value = null
+  loadingTrackId.value = currentTrack.value.id
   requestedTrackId.value = currentTrack.value.id
   audio.pause()
   audio.src = currentTrackUrl.value
@@ -138,7 +146,7 @@ function isCurrentTrackRequestActive() {
 }
 
 function hasActiveTrackRequest() {
-  return isLoading.value && requestedTrackId.value !== null
+  return isLoading.value && loadingTrackId.value !== null
 }
 
 async function ensureTrackReady(autoplay = false) {
@@ -197,10 +205,6 @@ function selectTrack(index: number) {
     return
   }
 
-  if (hasActiveTrackRequest()) {
-    return
-  }
-
   currentIndex.value = index
 }
 
@@ -237,10 +241,16 @@ async function markTrackReady() {
 
   const token = ++readinessToken
 
-  preloadedTrackId.value = currentTrack.value.id
+  preloadedTrackId.value = loadingTrackId.value
   requestedTrackId.value = null
   isReady.value = true
   isLoading.value = false
+  loadingTrackId.value = null
+
+  if (preloadedTrackId.value !== currentTrack.value.id) {
+    void syncTrack()
+    return
+  }
 
   if (!pendingPlayAfterLoad.value) {
     return
