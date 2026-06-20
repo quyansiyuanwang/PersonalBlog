@@ -8,6 +8,7 @@
     "dev": "vite",
     "prebuild": "node scripts/generate-content-manifest.mjs && node scripts/generate-music-manifest.mjs",
     "build": "node scripts/generate-content-manifest.mjs && node scripts/generate-music-manifest.mjs && node scripts/generate-sitemap.mjs && vue-tsc -b && vite build",
+    "postbuild": "node scripts/copy-404.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
