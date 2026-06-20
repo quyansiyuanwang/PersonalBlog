@@ -54,6 +54,11 @@
         transition: opacity 0.5s ease;
       }
 
+      .splash-overlay.placeholder-hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+
       .splash-terminal {
         width: min(600px, 85vw);
         padding: 40px;
@@ -95,6 +100,14 @@
     <title>纸间风景</title>
   </head>
   <body>
+    <div id="startup-placeholder" class="splash-overlay" aria-hidden="true">
+      <div class="splash-terminal">
+        <div class="splash-line done">&gt; SYSTEM INITIALIZATION...</div>
+        <div class="splash-line active">&gt; LOADING KERNEL <span class="splash-bar-text">██████░░░░░░░░░░░░ 32%</span></div>
+        <div class="splash-line">&nbsp;</div>
+        <div class="splash-line active">&gt; BOOTSTRAP UI LAYER <span class="splash-cursor">_</span></div>
+      </div>
+    </div>
     <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

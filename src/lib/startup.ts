@@ -1,10 +1,10 @@
 import { prefetchRouteComponents } from '../router'
 import { musicTracks } from './music'
 
-const DEFAULT_MIN_SPLASH_MS = 3200
+const DEFAULT_MIN_SPLASH_MS = 2600
 const MUSIC_PRELOAD_COUNT = 2
 
-let startupPromise: Promise<void> | null = null
+let warmupPromise: Promise<void> | null = null
 const audioWarmers: HTMLAudioElement[] = []
 
 function sleep(ms: number) {
@@ -52,12 +52,12 @@ async function runStartupTasks() {
 }
 
 export function initializeStartupPreload(minSplashMs = DEFAULT_MIN_SPLASH_MS) {
-  if (!startupPromise) {
-    startupPromise = Promise.all([
-      sleep(minSplashMs),
-      runStartupTasks(),
-    ]).then(() => undefined)
+  if (!warmupPromise) {
+    warmupPromise = runStartupTasks().then(() => undefined)
   }
 
-  return startupPromise
+  return Promise.all([
+    sleep(minSplashMs),
+    warmupPromise,
+  ]).then(() => undefined)
 }

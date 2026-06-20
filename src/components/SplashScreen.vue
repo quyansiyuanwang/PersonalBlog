@@ -84,6 +84,14 @@ function barString(pct: number, width = 20): string {
 }
 
 onMounted(() => {
+  const placeholder = document.getElementById('startup-placeholder')
+  if (placeholder) {
+    placeholder.classList.add('placeholder-hidden')
+    window.setTimeout(() => {
+      placeholder.remove()
+    }, 520)
+  }
+
   startBoot()
 })
 </script>
