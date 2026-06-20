@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { initializeStartupPreload } from '../lib/startup'
 
 const emit = defineEmits<{ done: [] }>()
 
@@ -21,7 +22,8 @@ const lines: { text: string; done: boolean; active: boolean }[] = [
 ]
 
 async function startBoot() {
-  await sleep(400)
+  const startupReady = initializeStartupPreload()
+
   lines[0].active = true
   await sleep(300)
   lines[0].done = true
@@ -51,7 +53,9 @@ async function startBoot() {
   await fillBar(bar2, 100, 25)
   lines[6].done = true
 
-  await sleep(400)
+  await startupReady
+
+  await sleep(250)
   // 触发淡出
   fading.value = true
   await sleep(500)
@@ -84,6 +88,7 @@ function barString(pct: number, width = 20): string {
 
 onMounted(() => {
   if (!visible.value) {
+    void initializeStartupPreload(0)
     emit('done')
     return
   }

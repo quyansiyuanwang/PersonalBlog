@@ -2,7 +2,6 @@
 import { ref, onMounted, onUnmounted } from "vue";
 import { RouterLink, RouterView, useRoute } from "vue-router";
 import { siteConfig } from "../lib/site";
-import { prefetchRouteComponents } from "../router";
 import SplashScreen from "../components/SplashScreen.vue";
 import CustomCursor from "../components/CustomCursor.vue";
 import FuiMusicWidget from "../components/FuiMusicWidget.vue";
@@ -70,8 +69,6 @@ interface Particle {
 
 const particles = ref<Particle[]>([]);
 onMounted(() => {
-  prefetchRouteComponents();
-
   const items: Particle[] = [];
   for (let i = 0; i < 24; i++) {
     items.push({

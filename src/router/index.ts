@@ -10,7 +10,7 @@ const loadTagsView = () => import('../views/TagsView.vue')
 const routePrefetchers = [loadHomeView, loadPostDetailView, loadAboutView, loadArchiveView, loadTagsView]
 
 const router = createRouter({
-  history: createWebHistory('/PersonalBlog/'),
+  history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     {
       path: '/',
@@ -66,14 +66,11 @@ router.afterEach((to) => {
 
 export function prefetchRouteComponents() {
   const runPrefetch = () => {
-    routePrefetchers.forEach((loadView) => {
-      void loadView()
-    })
+    return Promise.allSettled(routePrefetchers.map((loadView) => loadView())).then(() => undefined)
   }
 
   if (typeof window === 'undefined') {
-    runPrefetch()
-    return
+    return runPrefetch()
   }
 
   const idleWindow = window as Window & {
@@ -81,11 +78,18 @@ export function prefetchRouteComponents() {
   }
 
   if (typeof idleWindow.requestIdleCallback === 'function') {
-    idleWindow.requestIdleCallback(runPrefetch, { timeout: 1200 })
-    return
+    return new Promise<void>((resolve) => {
+      idleWindow.requestIdleCallback?.(() => {
+        void runPrefetch().then(resolve)
+      }, { timeout: 1200 })
+    })
   }
 
-  window.setTimeout(runPrefetch, 600)
+  return new Promise<void>((resolve) => {
+    window.setTimeout(() => {
+      void runPrefetch().then(resolve)
+    }, 600)
+  })
 }
 
 export default router
