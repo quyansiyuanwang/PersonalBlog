@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch, provide } from 'vue'
 import { useRoute } from 'vue-router'
 import MarkdownRenderer from '../components/MarkdownRenderer.vue'
 import PostList from '../components/PostList.vue'
 import PostMeta from '../components/PostMeta.vue'
 import { getPostBySlug, getRelatedPosts } from '../lib/posts'
 import { useScrollReveal } from '../lib/scrollReveal'
+import { useScrollSpy } from '../lib/scrollSpy'
+import { tocKey } from '../lib/tocKey'
+import type { HeadingItem } from '../components/MarkdownRenderer.vue'
 
 const route = useRoute()
 
@@ -13,6 +16,28 @@ const post = computed(() => getPostBySlug(String(route.params.slug ?? '')))
 const relatedPosts = computed(() => (post.value ? getRelatedPosts(post.value.slug) : []))
 
 const { observe } = useScrollReveal()
+
+const rendererRef = ref<InstanceType<typeof MarkdownRenderer> | null>(null)
+const headings = ref<HeadingItem[]>([])
+
+// Sync headings from renderer after mount / route change
+watch(() => route.params.slug, () => {
+  headings.value = []
+})
+watch(
+  rendererRef,
+  () => {
+    if (rendererRef.value?.headings) {
+      headings.value = rendererRef.value.headings
+    }
+  },
+  { immediate: true, deep: false },
+)
+
+const { activeId } = useScrollSpy(headings)
+
+// Provide TOC data to parent BlogLayout so it renders in the left panel
+provide(tocKey, { headings, activeId })
 </script>
 
 <template>
@@ -30,7 +55,7 @@ const { observe } = useScrollReveal()
     </header>
 
     <div class="reveal reveal-stagger-1">
-      <MarkdownRenderer :source="post.content" />
+      <MarkdownRenderer ref="rendererRef" :source="post.content" />
     </div>
 
     <PostList

@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { defineAsyncComponent, ref, onMounted, onUnmounted } from "vue";
+import { defineAsyncComponent, ref, onMounted, onUnmounted, inject, computed, watch } from "vue";
 import { RouterLink, RouterView, useRoute } from "vue-router";
 import { useSubtitle } from "../lib/subtitle";
+import { tocKey } from "../lib/tocKey";
 import { warmupBackgroundResources } from "../lib/startup";
 
 const CustomCursor = defineAsyncComponent(() =>
@@ -15,6 +16,17 @@ const FuiMusicWidget = defineAsyncComponent(() =>
 const route = useRoute();
 const leftPanelCollapsed = ref(false);
 const subtitle = useSubtitle();
+
+// ── TOC data from PostDetailView (via provide/inject) ──
+const tocData = inject(tocKey, null)
+const tocHeadings = computed(() => tocData?.headings.value ?? [])
+const tocActiveId = computed(() => tocData?.activeId.value ?? null)
+const showToc = computed(() => tocHeadings.value.length > 0)
+
+// Auto-collapse left panel when no TOC, expand when TOC available
+watch(showToc, (hasToc) => {
+  leftPanelCollapsed.value = !hasToc
+}, { immediate: true })
 
 const navigationItems = [
   { name: "首页", to: "/", label: "DATA-01" },
@@ -33,6 +45,13 @@ function isActiveRoute(path: string) {
 
 function toggleLeftPanel() {
   leftPanelCollapsed.value = !leftPanelCollapsed.value;
+}
+
+function scrollToHeading(id: string) {
+  const el = document.getElementById(id)
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 }
 
 function getRouteDisplayLabel(path: string) {
@@ -165,29 +184,39 @@ onUnmounted(() => {
               <span>PANEL</span>
             </button>
 
+            <!-- TOC in left panel -->
             <div
-              class="left-panel-player-wrap"
+              class="left-panel-toc-wrap"
               :class="{ hidden: leftPanelCollapsed }"
             >
-              <FuiMusicWidget />
+              <nav v-if="showToc" class="toc" aria-label="目录">
+                <h4 class="toc-title">目录</h4>
+                <ul class="toc-list">
+                  <li
+                    v-for="h in tocHeadings"
+                    :key="h.id"
+                    class="toc-item"
+                    :class="{
+                      [`toc-level-${h.level}`]: true,
+                      'toc-active': tocActiveId === h.id,
+                    }"
+                  >
+                    <a
+                      class="toc-link"
+                      :href="`#${h.id}`"
+                      @click.prevent="scrollToHeading(h.id)"
+                    >
+                      <span class="toc-dot" aria-hidden="true"></span>
+                      {{ h.text }}
+                    </a>
+                  </li>
+                </ul>
+              </nav>
+              <div v-else class="toc-empty">
+                <span class="toc-empty-icon">◈</span>
+                <span>查看博文时<br>此处显示目录</span>
+              </div>
             </div>
-
-            <button
-              class="collapsed-vinyl-button"
-              :class="{ visible: leftPanelCollapsed }"
-              type="button"
-              aria-label="展开播放器面板"
-              :aria-hidden="!leftPanelCollapsed"
-              :tabindex="leftPanelCollapsed ? 0 : -1"
-              @click="toggleLeftPanel"
-            >
-              <span class="collapsed-vinyl-disc">
-                <span class="collapsed-vinyl-ring ring-outer"></span>
-                <span class="collapsed-vinyl-ring ring-inner"></span>
-                <span class="collapsed-vinyl-label"></span>
-                <span class="collapsed-vinyl-center"></span>
-              </span>
-            </button>
           </div>
         </aside>
 
@@ -237,6 +266,11 @@ onUnmounted(() => {
           </div>
         </nav>
       </main>
+    </div>
+
+    <!-- Floating music widget -->
+    <div class="floating-player">
+      <FuiMusicWidget />
     </div>
   </div>
 </template>
@@ -370,7 +404,8 @@ onUnmounted(() => {
   border-width: 0;
 }
 
-.left-panel-player-wrap {
+/* ── TOC in left panel ── */
+.left-panel-toc-wrap {
   flex: 1;
   min-height: 0;
   min-width: 0;
@@ -386,12 +421,136 @@ onUnmounted(() => {
     max-height 0.46s ease;
 }
 
-.left-panel-player-wrap.hidden {
+.left-panel-toc-wrap.hidden {
   width: 0;
   max-height: 0;
   opacity: 0;
   transform: translateX(-30px) scale(0.94);
   pointer-events: none;
+}
+
+.toc {
+  height: 100%;
+  overflow-y: auto;
+  padding-right: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  line-height: 1.6;
+}
+
+.toc-title {
+  margin: 0 0 12px;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  color: var(--accent);
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.toc-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.toc-item {
+  padding: 0;
+}
+
+.toc-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  text-decoration: none;
+  padding: 5px 0;
+  border-radius: 4px;
+  transition: color 0.2s ease, padding-left 0.2s ease, background 0.2s ease;
+}
+
+.toc-link:hover {
+  color: var(--text-main);
+  padding-left: 4px;
+  background: color-mix(in srgb, var(--accent-soft) 40%, transparent);
+}
+
+.toc-active .toc-link {
+  color: var(--accent);
+}
+
+.toc-dot {
+  flex-shrink: 0;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--line);
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.toc-active .toc-dot {
+  background: var(--accent);
+  transform: scale(1.4);
+}
+
+.toc-level-3 .toc-link {
+  padding-left: 14px;
+  font-size: 0.72rem;
+}
+
+.toc::-webkit-scrollbar {
+  width: 3px;
+}
+
+.toc::-webkit-scrollbar-thumb {
+  background: var(--accent-soft);
+  border-radius: 3px;
+}
+
+.toc::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.toc-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 100%;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  opacity: 0.4;
+  letter-spacing: 0.04em;
+  line-height: 1.8;
+}
+
+.toc-empty-icon {
+  font-size: 1.2rem;
+  opacity: 0.5;
+}
+
+/* ── Floating player ── */
+.floating-player {
+  position: fixed;
+  left: 28px;
+  bottom: 28px;
+  z-index: 80;
+  width: min(460px, calc(100vw - 56px));
+  max-height: calc(100vh - 120px);
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+
+@media (max-width: 820px) {
+  .floating-player {
+    left: 12px;
+    bottom: 12px;
+    width: min(360px, calc(100vw - 24px));
+  }
 }
 
 .left-panel.collapsed {
