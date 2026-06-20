@@ -55,8 +55,10 @@ const markdown: MarkdownIt = new MarkdownIt({
 })
 
 // Custom fence for mermaid — outputs raw content inside a div
-const defaultFence = markdown.renderer.rules.fence!
-markdown.renderer.rules.fence = (tokens, idx, options, env, self) => {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const mdAny = markdown as any
+const defaultFence = mdAny.renderer.rules.fence!
+mdAny.renderer.rules.fence = (tokens: any[], idx: number, options: any, env: any, self: any) => {
   const token = tokens[idx]
   const lang = token.info.trim().split(/\s+/g)[0]
   if (lang === 'mermaid') {

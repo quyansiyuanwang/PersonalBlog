@@ -1,35 +1,27 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://yourname.github.io/PersonalBlog/#/</loc>
-    <lastmod>2026-06-04</lastmod>
+    <loc>https://blog.qysyw.cn/#/</loc>
+    <lastmod>2026-06-20</lastmod>
   </url>
   <url>
-    <loc>https://yourname.github.io/PersonalBlog/#/archive</loc>
-    <lastmod>2026-06-04</lastmod>
+    <loc>https://blog.qysyw.cn/#/archive</loc>
+    <lastmod>2026-06-20</lastmod>
   </url>
   <url>
-    <loc>https://yourname.github.io/PersonalBlog/#/about</loc>
-    <lastmod>2026-06-04</lastmod>
+    <loc>https://blog.qysyw.cn/#/about</loc>
+    <lastmod>2026-06-20</lastmod>
   </url>
   <url>
-    <loc>https://yourname.github.io/PersonalBlog/#/tags</loc>
-    <lastmod>2026-06-04</lastmod>
+    <loc>https://blog.qysyw.cn/#/tags</loc>
+    <lastmod>2026-06-20</lastmod>
   </url>
   <url>
-    <loc>https://yourname.github.io/PersonalBlog/#/post/hello-blog</loc>
-    <lastmod>2026-06-04</lastmod>
+    <loc>https://blog.qysyw.cn/#/post/ndkyoj-from-zero</loc>
+    <lastmod>2026-06-21</lastmod>
   </url>
   <url>
-    <loc>https://yourname.github.io/PersonalBlog/#/post/markdown-workflow</loc>
-    <lastmod>2026-05-12</lastmod>
-  </url>
-  <url>
-    <loc>https://yourname.github.io/PersonalBlog/#/post/slow-reading</loc>
-    <lastmod>2026-05-28</lastmod>
-  </url>
-  <url>
-    <loc>https://yourname.github.io/PersonalBlog/#/post/writing-rhythm</loc>
-    <lastmod>2026-04-21</lastmod>
+    <loc>https://blog.qysyw.cn/#/post/ndkyoj-refactor-nodejs</loc>
+    <lastmod>2026-05-15</lastmod>
   </url>
 </urlset>
