@@ -47,17 +47,7 @@ function getRouteDisplayLabel(path: string) {
     .toUpperCase();
 }
 
-const onlineStatus = ref<"ONLINE" | "OFFLINE">("ONLINE");
 let onlineTimer: number | null = null;
-
-async function syncOnlineStatus() {
-  try {
-    await fetch("https://api.qysyw.cn/ping", { method: "GET" });
-    onlineStatus.value = "ONLINE";
-  } catch {
-    onlineStatus.value = "OFFLINE";
-  }
-}
 
 const shellReady = ref(false);
 function onSplashDone() {
@@ -93,8 +83,6 @@ onMounted(() => {
     });
   }
   particles.value = items;
-  syncOnlineStatus();
-  onlineTimer = window.setInterval(syncOnlineStatus, 5000);
 });
 
 onUnmounted(() => {
