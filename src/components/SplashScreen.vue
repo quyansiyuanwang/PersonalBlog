@@ -4,9 +4,7 @@ import { initializeStartupPreload } from '../lib/startup'
 
 const emit = defineEmits<{ done: [] }>()
 
-const SKIP_KEY = 'paper-scape-splash-seen'
-
-const visible = ref(!localStorage.getItem(SKIP_KEY))
+const visible = ref(true)
 const fading = ref(false)
 const bar1 = ref(0)
 const bar2 = ref(0)
@@ -59,7 +57,6 @@ async function startBoot() {
   // 触发淡出
   fading.value = true
   await sleep(500)
-  localStorage.setItem(SKIP_KEY, '1')
   visible.value = false
   emit('done')
 }
@@ -87,11 +84,6 @@ function barString(pct: number, width = 20): string {
 }
 
 onMounted(() => {
-  if (!visible.value) {
-    void initializeStartupPreload(0)
-    emit('done')
-    return
-  }
   startBoot()
 })
 </script>
