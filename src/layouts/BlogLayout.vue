@@ -1,10 +1,16 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from "vue";
+import { defineAsyncComponent, ref, onMounted, onUnmounted } from "vue";
 import { RouterLink, RouterView, useRoute } from "vue-router";
 import { siteConfig } from "../lib/site";
 import SplashScreen from "../components/SplashScreen.vue";
-import CustomCursor from "../components/CustomCursor.vue";
-import FuiMusicWidget from "../components/FuiMusicWidget.vue";
+
+const CustomCursor = defineAsyncComponent(() =>
+  import("../components/CustomCursor.vue"),
+);
+
+const FuiMusicWidget = defineAsyncComponent(() =>
+  import("../components/FuiMusicWidget.vue"),
+);
 
 const route = useRoute();
 const leftPanelCollapsed = ref(false);

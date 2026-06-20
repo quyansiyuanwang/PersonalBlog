@@ -4,7 +4,7 @@ import { musicTracks } from './music'
 const DEFAULT_MIN_SPLASH_MS = 1000
 const MUSIC_PRELOAD_COUNT = 2
 
-let warmupPromise: Promise<void> | null = null
+let backgroundWarmupPromise: Promise<void> | null = null
 const audioWarmers: HTMLAudioElement[] = []
 
 function sleep(ms: number) {
@@ -52,12 +52,13 @@ async function runStartupTasks() {
 }
 
 export function initializeStartupPreload(minSplashMs = DEFAULT_MIN_SPLASH_MS) {
-  if (!warmupPromise) {
-    warmupPromise = runStartupTasks().then(() => undefined)
+  return sleep(minSplashMs)
+}
+
+export function warmupBackgroundResources() {
+  if (!backgroundWarmupPromise) {
+    backgroundWarmupPromise = runStartupTasks().then(() => undefined)
   }
 
-  return Promise.all([
-    sleep(minSplashMs),
-    warmupPromise,
-  ]).then(() => undefined)
+  return backgroundWarmupPromise
 }

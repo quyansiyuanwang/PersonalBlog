@@ -10,6 +10,22 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
+          if (id.includes("src/components/FuiMusicWidget.vue")) {
+            return "music-widget";
+          }
+
+          if (id.includes("src/components/CustomCursor.vue")) {
+            return "cursor";
+          }
+
+          if (id.includes("src/components/SplashScreen.vue") || id.includes("src/lib/startup.ts")) {
+            return "startup";
+          }
+
+          if (id.includes("src/layouts/BlogLayout.vue") || id.includes("src/style-blog.css")) {
+            return "shell";
+          }
+
           if (id.includes("markdown-it") || id.includes("highlight.js")) {
             return "markdown";
           }

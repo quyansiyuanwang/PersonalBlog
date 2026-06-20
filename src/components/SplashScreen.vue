@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import { initializeStartupPreload } from '../lib/startup'
+import { initializeStartupPreload, warmupBackgroundResources } from '../lib/startup'
 
 const emit = defineEmits<{ done: [] }>()
 
@@ -21,6 +21,7 @@ onMounted(async () => {
   }
 
   emit('done')
+  void warmupBackgroundResources()
 })
 </script>
 
