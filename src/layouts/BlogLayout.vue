@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { defineAsyncComponent, ref, onMounted, onUnmounted } from "vue";
 import { RouterLink, RouterView, useRoute } from "vue-router";
-import { siteConfig } from "../lib/site";
+import { useSubtitle } from "../lib/subtitle";
 import { warmupBackgroundResources } from "../lib/startup";
 
 const CustomCursor = defineAsyncComponent(() =>
@@ -14,6 +14,7 @@ const FuiMusicWidget = defineAsyncComponent(() =>
 
 const route = useRoute();
 const leftPanelCollapsed = ref(false);
+const subtitle = useSubtitle();
 
 const navigationItems = [
   { name: "首页", to: "/", label: "DATA-01" },
@@ -134,7 +135,7 @@ onUnmounted(() => {
       </div>
       <div class="status-bar-section">
         <span class="status-bar-sep">|</span>
-        <span>{{ siteConfig.subtitle }}</span>
+        <span>{{ subtitle }}</span>
       </div>
     </div>
 
