@@ -2,7 +2,6 @@
 import { defineAsyncComponent, ref, onMounted, onUnmounted } from "vue";
 import { RouterLink, RouterView, useRoute } from "vue-router";
 import { siteConfig } from "../lib/site";
-import SplashScreen from "../components/SplashScreen.vue";
 
 const CustomCursor = defineAsyncComponent(() =>
   import("../components/CustomCursor.vue"),
@@ -55,13 +54,6 @@ function getRouteDisplayLabel(path: string) {
 
 let onlineTimer: number | null = null;
 
-const shellReady = ref(false);
-function onSplashDone() {
-  requestAnimationFrame(() => {
-    shellReady.value = true;
-  });
-}
-
 interface Particle {
   id: number;
   left: string;
@@ -99,8 +91,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <SplashScreen @done="onSplashDone" />
-  <div v-if="shellReady" class="particle-field" aria-hidden="true">
+  <div class="particle-field" aria-hidden="true">
     <span
       v-for="p in particles"
       :key="p.id"
@@ -117,12 +108,8 @@ onUnmounted(() => {
       }"
     ></span>
   </div>
-  <CustomCursor v-if="shellReady" />
-  <div
-    v-show="shellReady"
-    class="blog-layout-wrapper"
-    :class="{ 'shell-entered': shellReady }"
-  >
+  <CustomCursor />
+  <div class="blog-layout-wrapper shell-entered">
     <div class="status-bar shell-enter-1">
       <div class="status-bar-section">
         <span class="status-bar-dot"></span>

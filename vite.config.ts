@@ -18,7 +18,7 @@ export default defineConfig({
             return "cursor";
           }
 
-          if (id.includes("src/components/SplashScreen.vue") || id.includes("src/lib/startup.ts")) {
+          if (id.includes("src/lib/startup.ts")) {
             return "startup";
           }
 
