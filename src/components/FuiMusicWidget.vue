@@ -1,62 +1,52 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { musicTracks } from '../lib/music'
 
 const tracks = musicTracks
 
+// ── audio element ──
 const audioRef = ref<HTMLAudioElement | null>(null)
+
+// ── reactive UI state ──
 const currentIndex = ref(0)
 const isPlaying = ref(false)
 const currentTime = ref(0)
 const duration = ref(0)
-const isReady = ref(false)
-const isLoading = ref(false)
-const pendingPlayAfterLoad = ref(false)
 const rotationDeg = ref(0)
-const loadingTrackId = ref<string | null>(null)
-const preloadedTrackId = ref<string | null>(null)
-const requestedTrackId = ref<string | null>(null)
 
+// ── per-track state ──
+const TRACK_COUNT = tracks.length
+
+// blob URL  once fetched
+const blobCache = reactive<(string | null)[]>(new Array(TRACK_COUNT).fill(null))
+// true while fetch is in-flight
+const fetchPending = reactive<boolean[]>(new Array(TRACK_COUNT).fill(false))
+
+// which track is currently "loaded" into <audio>
+let loadedTrackIdx = -1
+
+// rotation loop
 let animationFrameId: number | null = null
 let lastFrameTime = 0
-let preloadToken = 0
-let readinessToken = 0
 
+// ── derived ──
 const currentTrack = computed(() => tracks[currentIndex.value])
-const currentTrackUrl = computed(() => new URL(currentTrack.value.url, window.location.href).href)
-const progressPercent = computed(() => {
-  if (!duration.value) {
-    return 0
-  }
 
+const progressPercent = computed(() => {
+  if (!duration.value) return 0
   return Math.min((currentTime.value / duration.value) * 100, 100)
 })
 
 const statusLabel = computed(() => {
-  if (isLoading.value) {
-    return '[BUFFER]'
-  }
-
-  if (!isReady.value) {
-    return '[LOAD]'
-  }
-
+  if (fetchPending[currentIndex.value]) return '[BUFFER]'
+  if (!blobCache[currentIndex.value]) return '[LOAD]'
   return isPlaying.value ? '[PLAY]' : '[PAUSE]'
 })
 
 const currentTrackStateLabel = computed(() => {
-  if (isLoading.value) {
-    return 'LOADING'
-  }
-
-  if (isPlaying.value) {
-    return 'PLAYING'
-  }
-
-  if (isReady.value) {
-    return 'READY'
-  }
-
+  if (fetchPending[currentIndex.value]) return 'LOADING'
+  if (isPlaying.value) return 'PLAYING'
+  if (blobCache[currentIndex.value]) return 'READY'
   return 'LOAD'
 })
 
@@ -65,25 +55,18 @@ const recordStyle = computed(() => ({
   transform: `rotate(${rotationDeg.value}deg)`,
 }))
 
+// ── rotation ──
 function stopRotationLoop() {
   if (animationFrameId !== null) {
     cancelAnimationFrame(animationFrameId)
     animationFrameId = null
   }
-
   lastFrameTime = 0
 }
 
 function stepRotation(timestamp: number) {
-  if (!isPlaying.value) {
-    stopRotationLoop()
-    return
-  }
-
-  if (!lastFrameTime) {
-    lastFrameTime = timestamp
-  }
-
+  if (!isPlaying.value) { stopRotationLoop(); return }
+  if (!lastFrameTime) lastFrameTime = timestamp
   const delta = timestamp - lastFrameTime
   lastFrameTime = timestamp
   rotationDeg.value = (rotationDeg.value - delta * 0.042 + 360) % 360
@@ -91,246 +74,156 @@ function stepRotation(timestamp: number) {
 }
 
 function startRotationLoop() {
-  if (animationFrameId !== null) {
-    return
-  }
-
+  if (animationFrameId !== null) return
   animationFrameId = requestAnimationFrame(stepRotation)
 }
 
+// ── helpers ──
 function formatTime(seconds: number) {
-  if (!Number.isFinite(seconds) || seconds <= 0) {
-    return '00:00'
-  }
-
+  if (!Number.isFinite(seconds) || seconds <= 0) return '00:00'
   const mins = Math.floor(seconds / 60)
   const secs = Math.floor(seconds % 60)
   return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
 }
 
-function syncTrack() {
+function getTrackUrl(idx: number): string {
+  return new URL(tracks[idx].url, window.location.href).href
+}
+
+// ── core: switch track ──
+function loadTrack(idx: number) {
   const audio = audioRef.value
-  if (!audio) {
+  if (!audio) return
+
+  // already loaded
+  if (loadedTrackIdx === idx && blobCache[idx]) {
+    // just seek to 0 if needed
     return
   }
 
-  if (hasActiveTrackRequest()) {
-    requestedTrackId.value = currentTrack.value.id
-    pendingPlayAfterLoad.value = isPlaying.value || pendingPlayAfterLoad.value
+  // cached → apply blob URL immediately, zero network
+  if (blobCache[idx]) {
+    audio.pause()
+    audio.src = blobCache[idx]!
+    loadedTrackIdx = idx
+    currentTime.value = 0
+    duration.value = audio.duration || duration.value
     return
   }
 
-  const shouldResumePlayback = isPlaying.value || pendingPlayAfterLoad.value
+  // fetch already in flight → do nothing, wait for it to land
+  if (fetchPending[idx]) return
 
-  preloadToken += 1
-  isReady.value = false
-  isLoading.value = true
-  pendingPlayAfterLoad.value = shouldResumePlayback
+  // need to fetch
+  fetchPending[idx] = true
+  const url = getTrackUrl(idx)
+
+  fetch(url)
+    .then((res) => {
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      return res.blob()
+    })
+    .then((blob) => {
+      const blobUrl = URL.createObjectURL(blob)
+      blobCache[idx] = blobUrl
+      fetchPending[idx] = false
+
+      // only apply if this is still the current track
+      if (currentIndex.value !== idx) return
+
+      const a = audioRef.value
+      if (!a) return
+
+      a.pause()
+      a.src = blobUrl
+      loadedTrackIdx = idx
+      currentTime.value = 0
+      duration.value = a.duration || duration.value
+
+      if (isPlaying.value) {
+        a.play().catch(() => { isPlaying.value = false })
+      }
+    })
+    .catch(() => {
+      fetchPending[idx] = false
+      if (currentIndex.value === idx) {
+        isPlaying.value = false
+      }
+    })
+
+  // while fetching, clear current audio
+  audio.pause()
+  audio.removeAttribute('src')
+  loadedTrackIdx = -1
   currentTime.value = 0
   duration.value = 0
-  preloadedTrackId.value = null
-  loadingTrackId.value = currentTrack.value.id
-  requestedTrackId.value = currentTrack.value.id
-  audio.pause()
-  audio.src = currentTrackUrl.value
-  audio.load()
 }
 
-function isCurrentTrackRequestActive() {
+// ── playback ──
+function togglePlayback() {
   const audio = audioRef.value
-  if (!audio) {
-    return false
-  }
-
-  return requestedTrackId.value === currentTrack.value.id && audio.src === currentTrackUrl.value
-}
-
-function hasActiveTrackRequest() {
-  return isLoading.value && loadingTrackId.value !== null
-}
-
-async function ensureTrackReady(autoplay = false) {
-  const audio = audioRef.value
-  if (!audio) {
-    return false
-  }
-
-  if (preloadedTrackId.value === currentTrack.value.id && isReady.value) {
-    if (autoplay) {
-      try {
-        await audio.play()
-        return true
-      } catch {
-        isPlaying.value = false
-        return false
-      }
-    }
-
-    return true
-  }
-
-  pendingPlayAfterLoad.value = autoplay
-  if (isCurrentTrackRequestActive()) {
-    return false
-  }
-
-  if (audio.src !== currentTrackUrl.value) {
-    syncTrack()
-  }
-  return false
-}
-
-async function togglePlayback() {
-  const audio = audioRef.value
-  if (!audio) {
-    return
-  }
+  if (!audio) return
 
   if (isPlaying.value) {
     audio.pause()
     return
   }
 
-  if (!(await ensureTrackReady(true))) {
+  const idx = currentIndex.value
+  if (blobCache[idx] && loadedTrackIdx === idx) {
+    audio.play().catch(() => { isPlaying.value = false })
     return
   }
+
+  // not ready yet — start playing, loadTrack will auto-play when blob lands
+  isPlaying.value = true
+  loadTrack(idx)
 }
 
 function playNext() {
-  currentIndex.value = (currentIndex.value + 1) % tracks.length
+  currentIndex.value = (currentIndex.value + 1) % TRACK_COUNT
 }
 
 function selectTrack(index: number) {
-  if (index === currentIndex.value) {
-    return
-  }
-
+  if (index === currentIndex.value) return
   currentIndex.value = index
 }
 
 function seekTrack(event: MouseEvent) {
   const audio = audioRef.value
   const target = event.currentTarget as HTMLButtonElement | null
-  if (!audio || !target || !duration.value) {
-    return
-  }
-
+  if (!audio || !target || !duration.value) return
   const rect = target.getBoundingClientRect()
   const ratio = Math.min(Math.max((event.clientX - rect.left) / rect.width, 0), 1)
   audio.currentTime = ratio * duration.value
 }
 
-function handleLoadedMetadata() {
-  const audio = audioRef.value
-  if (!audio) {
-    return
-  }
-
-  duration.value = audio.duration
-}
-
-async function markTrackReady() {
-  const audio = audioRef.value
-  if (!audio) {
-    return
-  }
-
-  if (audio.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
-    return
-  }
-
-  const token = ++readinessToken
-
-  preloadedTrackId.value = loadingTrackId.value
-  requestedTrackId.value = null
-  isReady.value = true
-  isLoading.value = false
-  loadingTrackId.value = null
-
-  if (preloadedTrackId.value !== currentTrack.value.id) {
-    void syncTrack()
-    return
-  }
-
-  if (!pendingPlayAfterLoad.value) {
-    return
-  }
-
-  pendingPlayAfterLoad.value = false
-
-  try {
-    await audio.play()
-    if (token !== readinessToken) {
-      return
-    }
-  } catch {
-    isPlaying.value = false
-  }
-}
-
-function handleLoadedData() {
-  void markTrackReady()
-}
-
-function handleCanPlay() {
-  void markTrackReady()
-}
-
-function handleCanPlayThrough() {
-  void markTrackReady()
-}
-
+// ── audio events ──
 function handleTimeUpdate() {
-  const audio = audioRef.value
-  if (!audio) {
-    return
-  }
-
-  currentTime.value = audio.currentTime
+  const a = audioRef.value
+  if (!a) return
+  currentTime.value = a.currentTime
+}
+function handlePlay() { isPlaying.value = true }
+function handlePause() { isPlaying.value = false }
+function handleEnded() { playNext() }
+function handleLoadedMetadata() {
+  const a = audioRef.value
+  if (!a) return
+  duration.value = a.duration
 }
 
-function handlePlay() {
-  isPlaying.value = true
-}
-
-function handlePause() {
-  isPlaying.value = false
-}
-
-function handleEnded() {
-  pendingPlayAfterLoad.value = true
-  playNext()
-}
-
-function handleWaiting() {
-  if (!isReady.value) {
-    isLoading.value = true
-  }
-}
-
-function handleError() {
-  isLoading.value = false
-  isReady.value = false
-  pendingPlayAfterLoad.value = false
-  requestedTrackId.value = null
-  isPlaying.value = false
-}
-
-watch(currentIndex, () => {
-  syncTrack()
+// ── watchers & lifecycle ──
+watch(currentIndex, (idx) => {
+  loadTrack(idx)
 })
 
-watch(isPlaying, (playing) => {
-  if (playing) {
-    startRotationLoop()
-    return
-  }
-
-  stopRotationLoop()
+watch(isPlaying, (p) => {
+  p ? startRotationLoop() : stopRotationLoop()
 })
 
 onMounted(() => {
-  syncTrack()
+  loadTrack(currentIndex.value)
 })
 
 onBeforeUnmount(() => {
@@ -344,16 +237,12 @@ onBeforeUnmount(() => {
     <audio
       ref="audioRef"
       preload="auto"
-      @canplay="handleCanPlay"
-      @canplaythrough="handleCanPlayThrough"
       @ended="handleEnded"
-      @error="handleError"
-      @loadeddata="handleLoadedData"
+      @error="isPlaying = false"
       @loadedmetadata="handleLoadedMetadata"
       @pause="handlePause"
       @play="handlePlay"
       @timeupdate="handleTimeUpdate"
-      @waiting="handleWaiting"
     ></audio>
 
     <div class="fui-widget-header">
@@ -398,7 +287,7 @@ onBeforeUnmount(() => {
         class="fui-playlist-item"
         :class="{
           active: currentTrack.id === track.id,
-          ready: preloadedTrackId === track.id,
+          ready: !!blobCache[index],
         }"
         type="button"
         @click="selectTrack(index)"

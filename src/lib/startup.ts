@@ -36,12 +36,12 @@ function warmAudioTrack(url: string) {
 }
 
 async function runStartupTasks() {
-  const musicTasks = musicTracks.slice(0, MUSIC_PRELOAD_COUNT).map((track) => warmAudioTrack(track.url))
+  // 先加载文章路由组件
+  await prefetchRouteComponents()
 
-  await Promise.allSettled([
-    prefetchRouteComponents(),
-    ...musicTasks,
-  ])
+  // 后预热音乐
+  const musicTasks = musicTracks.slice(0, MUSIC_PRELOAD_COUNT).map((track) => warmAudioTrack(track.url))
+  await Promise.allSettled(musicTasks)
 }
 
 export function warmupBackgroundResources() {
