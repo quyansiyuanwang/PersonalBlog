@@ -5,7 +5,7 @@ export const siteConfig = {
     '基于 Vue 3、Element Plus 与 Markdown 构建的静态个人博客，记录技术、文字与日常灵感。',
   author: 'Lin',
   repoName: 'PersonalBlog',
-  siteUrl: 'https://quyansiyuanwang.github.io/PersonalBlog/',
+  siteUrl: 'https://blog.qysyw.cn/',
   basePath: import.meta.env.BASE_URL,
   locale: 'zh_CN',
   hero:
