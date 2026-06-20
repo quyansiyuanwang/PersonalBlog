@@ -22,6 +22,7 @@ let preloadToken = 0
 let readinessToken = 0
 
 const currentTrack = computed(() => tracks[currentIndex.value])
+const currentTrackUrl = computed(() => new URL(currentTrack.value.url, window.location.href).href)
 const progressPercent = computed(() => {
   if (!duration.value) {
     return 0
@@ -123,8 +124,17 @@ function syncTrack() {
   preloadedTrackId.value = null
   requestedTrackId.value = currentTrack.value.id
   audio.pause()
-  audio.src = currentTrack.value.url
+  audio.src = currentTrackUrl.value
   audio.load()
+}
+
+function isCurrentTrackRequestActive() {
+  const audio = audioRef.value
+  if (!audio) {
+    return false
+  }
+
+  return requestedTrackId.value === currentTrack.value.id && audio.src === currentTrackUrl.value
 }
 
 async function ensureTrackReady(autoplay = false) {
@@ -148,8 +158,11 @@ async function ensureTrackReady(autoplay = false) {
   }
 
   pendingPlayAfterLoad.value = autoplay
-  requestedTrackId.value = currentTrack.value.id
-  if (audio.src !== currentTrack.value.url) {
+  if (isCurrentTrackRequestActive()) {
+    return false
+  }
+
+  if (audio.src !== currentTrackUrl.value) {
     syncTrack()
   }
   return false

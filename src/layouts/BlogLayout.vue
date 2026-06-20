@@ -2,6 +2,7 @@
 import { defineAsyncComponent, ref, onMounted, onUnmounted } from "vue";
 import { RouterLink, RouterView, useRoute } from "vue-router";
 import { siteConfig } from "../lib/site";
+import { warmupBackgroundResources } from "../lib/startup";
 
 const CustomCursor = defineAsyncComponent(() =>
   import("../components/CustomCursor.vue"),
@@ -81,6 +82,21 @@ onMounted(() => {
     });
   }
   particles.value = items;
+
+  const idleWindow = window as Window & {
+    requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+  };
+
+  if (typeof idleWindow.requestIdleCallback === "function") {
+    idleWindow.requestIdleCallback(() => {
+      void warmupBackgroundResources();
+    }, { timeout: 1500 });
+    return;
+  }
+
+  window.setTimeout(() => {
+    void warmupBackgroundResources();
+  }, 180);
 });
 
 onUnmounted(() => {
