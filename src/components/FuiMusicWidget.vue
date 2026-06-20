@@ -137,6 +137,10 @@ function isCurrentTrackRequestActive() {
   return requestedTrackId.value === currentTrack.value.id && audio.src === currentTrackUrl.value
 }
 
+function hasActiveTrackRequest() {
+  return isLoading.value && requestedTrackId.value !== null
+}
+
 async function ensureTrackReady(autoplay = false) {
   const audio = audioRef.value
   if (!audio) {
@@ -190,6 +194,10 @@ function playNext() {
 
 function selectTrack(index: number) {
   if (index === currentIndex.value) {
+    return
+  }
+
+  if (hasActiveTrackRequest()) {
     return
   }
 
