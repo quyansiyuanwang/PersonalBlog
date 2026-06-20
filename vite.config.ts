@@ -26,7 +26,7 @@ export default defineConfig({
             return "shell";
           }
 
-          if (id.includes("markdown-it") || id.includes("highlight.js")) {
+          if (id.includes("markdown-it") || id.includes("highlight.js") || id.includes("mermaid")) {
             return "markdown";
           }
 

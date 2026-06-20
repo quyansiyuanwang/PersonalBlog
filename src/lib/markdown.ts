@@ -10,9 +10,13 @@ import markdownLanguage from 'highlight.js/lib/languages/markdown'
 import plaintext from 'highlight.js/lib/languages/plaintext'
 import typescript from 'highlight.js/lib/languages/typescript'
 import xml from 'highlight.js/lib/languages/xml'
+import python from 'highlight.js/lib/languages/python'
+import sql from 'highlight.js/lib/languages/sql'
+import yaml from 'highlight.js/lib/languages/yaml'
 
 hljs.registerLanguage('bash', bash)
 hljs.registerLanguage('sh', bash)
+hljs.registerLanguage('shell', bash)
 hljs.registerLanguage('css', css)
 hljs.registerLanguage('html', xml)
 hljs.registerLanguage('javascript', javascript)
@@ -26,12 +30,22 @@ hljs.registerLanguage('typescript', typescript)
 hljs.registerLanguage('ts', typescript)
 hljs.registerLanguage('vue', xml)
 hljs.registerLanguage('xml', xml)
+hljs.registerLanguage('python', python)
+hljs.registerLanguage('py', python)
+hljs.registerLanguage('sql', sql)
+hljs.registerLanguage('yaml', yaml)
+hljs.registerLanguage('yml', yaml)
 
 const markdown: MarkdownIt = new MarkdownIt({
   html: true,
   linkify: true,
   typographer: true,
   highlight(code: string, language: string): string {
+    // mermaid is handled by the custom fence below
+    if (language === 'mermaid') {
+      return `<div class="mermaid">${markdown.utils.escapeHtml(code)}</div>`
+    }
+
     if (language && hljs.getLanguage(language)) {
       return `<pre class="hljs"><code>${hljs.highlight(code, { language }).value}</code></pre>`
     }
@@ -39,6 +53,17 @@ const markdown: MarkdownIt = new MarkdownIt({
     return `<pre class="hljs"><code>${markdown.utils.escapeHtml(code)}</code></pre>`
   },
 })
+
+// Custom fence for mermaid — outputs raw content inside a div
+const defaultFence = markdown.renderer.rules.fence!
+markdown.renderer.rules.fence = (tokens, idx, options, env, self) => {
+  const token = tokens[idx]
+  const lang = token.info.trim().split(/\s+/g)[0]
+  if (lang === 'mermaid') {
+    return `<div class="mermaid">${token.content}</div>`
+  }
+  return defaultFence(tokens, idx, options, env, self)
+}
 
 markdown.use(anchor, {
   level: [2, 3],

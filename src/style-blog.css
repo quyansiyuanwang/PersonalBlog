@@ -721,15 +721,91 @@ img {
   line-height: 1.9;
 }
 
+/* ── Code blocks ── */
 .markdown-body pre {
   padding: 18px;
   background: var(--code-bg);
   border: 1px solid var(--line);
   border-radius: 8px;
+  overflow-x: auto;
 }
 
-.markdown-body code {
+.markdown-body pre code {
   font-family: var(--font-mono);
+  font-size: 0.82rem;
+  line-height: 1.65;
+  color: #d4d4d4;
+  background: none;
+  padding: 0;
+}
+
+/* inline code */
+.markdown-body :not(pre) > code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  padding: 0.2em 0.45em;
+  border-radius: 4px;
+  background: var(--accent-soft);
+  color: var(--text-main);
+}
+
+/* ── highlight.js theme (light + dark) ── */
+.markdown-body .hljs-keyword,
+.markdown-body .hljs-selector-tag,
+.markdown-body .hljs-literal,
+.markdown-body .hljs-section,
+.markdown-body .hljs-link { color: #c586c0; }
+.markdown-body .hljs-string,
+.markdown-body .hljs-addition,
+.markdown-body .hljs-attribute,
+.markdown-body .hljs-regexp { color: #ce9178; }
+.markdown-body .hljs-number,
+.markdown-body .hljs-symbol,
+.markdown-body .hljs-bullet,
+.markdown-body .hljs-variable,
+.markdown-body .hljs-template-variable { color: #b5cea8; }
+.markdown-body .hljs-title,
+.markdown-body .hljs-function .hljs-title,
+.markdown-body .hljs-class .hljs-title,
+.markdown-body .hljs-type { color: #dcdcaa; }
+.markdown-body .hljs-comment,
+.markdown-body .hljs-quote,
+.markdown-body .hljs-deletion,
+.markdown-body .hljs-meta { color: #6a9955; }
+.markdown-body .hljs-built_in,
+.markdown-body .hljs-name,
+.markdown-body .hljs-selector-id,
+.markdown-body .hljs-selector-class,
+.markdown-body .hljs-attr { color: #9cdcfe; }
+.markdown-body .hljs-tag,
+.markdown-body .hljs-selector-pseudo { color: #569cd6; }
+.markdown-body .hljs-params,
+.markdown-body .hljs-emphasis { color: #e2e2e2; font-style: italic; }
+.markdown-body .hljs-strong { color: #e2e2e2; font-weight: 600; }
+.markdown-body .hljs-formula { color: #c586c0; }
+
+/* dark mode keeps same highlight colors (code-bg is dark in both modes) */
+:root[data-theme='dark'] .markdown-body pre code {
+  color: #d4d4d4;
+}
+
+/* ── Mermaid ── */
+.markdown-body .mermaid {
+  text-align: center;
+  margin: 1.5em 0;
+}
+
+.markdown-body .mermaid:not([data-processed]) {
+  padding: 18px;
+  background: var(--code-bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  overflow-x: auto;
+  white-space: pre;
+  text-align: left;
 }
 
 .markdown-body blockquote {
