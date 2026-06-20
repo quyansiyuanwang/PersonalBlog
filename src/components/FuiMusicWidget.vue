@@ -19,6 +19,7 @@ const requestedTrackId = ref<string | null>(null)
 let animationFrameId: number | null = null
 let lastFrameTime = 0
 let preloadToken = 0
+let readinessToken = 0
 
 const currentTrack = computed(() => tracks[currentIndex.value])
 const progressPercent = computed(() => {
@@ -203,11 +204,17 @@ function handleLoadedMetadata() {
   duration.value = audio.duration
 }
 
-async function handleCanPlayThrough() {
+async function markTrackReady() {
   const audio = audioRef.value
   if (!audio) {
     return
   }
+
+  if (audio.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+    return
+  }
+
+  const token = ++readinessToken
 
   preloadedTrackId.value = currentTrack.value.id
   requestedTrackId.value = null
@@ -222,9 +229,24 @@ async function handleCanPlayThrough() {
 
   try {
     await audio.play()
+    if (token !== readinessToken) {
+      return
+    }
   } catch {
     isPlaying.value = false
   }
+}
+
+function handleLoadedData() {
+  void markTrackReady()
+}
+
+function handleCanPlay() {
+  void markTrackReady()
+}
+
+function handleCanPlayThrough() {
+  void markTrackReady()
 }
 
 function handleTimeUpdate() {
@@ -250,7 +272,9 @@ function handleEnded() {
 }
 
 function handleWaiting() {
-  isLoading.value = true
+  if (!isReady.value) {
+    isLoading.value = true
+  }
 }
 
 function handleError() {
@@ -289,9 +313,11 @@ onBeforeUnmount(() => {
     <audio
       ref="audioRef"
       preload="auto"
+      @canplay="handleCanPlay"
       @canplaythrough="handleCanPlayThrough"
       @ended="handleEnded"
       @error="handleError"
+      @loadeddata="handleLoadedData"
       @loadedmetadata="handleLoadedMetadata"
       @pause="handlePause"
       @play="handlePlay"

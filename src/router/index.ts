@@ -1,13 +1,21 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { applyRouteSeo } from '../lib/seo'
 
+const loadHomeView = () => import('../views/HomeView.vue')
+const loadPostDetailView = () => import('../views/PostDetailView.vue')
+const loadAboutView = () => import('../views/AboutView.vue')
+const loadArchiveView = () => import('../views/ArchiveView.vue')
+const loadTagsView = () => import('../views/TagsView.vue')
+
+const routePrefetchers = [loadHomeView, loadPostDetailView, loadAboutView, loadArchiveView, loadTagsView]
+
 const router = createRouter({
   history: createWebHistory('/PersonalBlog/'),
   routes: [
     {
       path: '/',
       name: 'home',
-      component: () => import('../views/HomeView.vue'),
+      component: loadHomeView,
       meta: {
         title: '首页',
         description: '一个关于书写、设计与安静生活的个人角落，收集代码、文字与长期主义实践。',
@@ -16,13 +24,13 @@ const router = createRouter({
     {
       path: '/post/:slug',
       name: 'post-detail',
-      component: () => import('../views/PostDetailView.vue'),
+      component: loadPostDetailView,
       meta: { title: '文章' },
     },
     {
       path: '/about',
       name: 'about',
-      component: () => import('../views/AboutView.vue'),
+      component: loadAboutView,
       meta: {
         title: '关于',
         description: '了解博客作者、写作方式，以及这个静态博客背后的内容组织思路。',
@@ -31,7 +39,7 @@ const router = createRouter({
     {
       path: '/archive',
       name: 'archive',
-      component: () => import('../views/ArchiveView.vue'),
+      component: loadArchiveView,
       meta: {
         title: '归档',
         description: '按时间浏览所有文章归档，回看每一次写作和主题整理。',
@@ -40,7 +48,7 @@ const router = createRouter({
     {
       path: '/tags/:tag?',
       name: 'tags',
-      component: () => import('../views/TagsView.vue'),
+      component: loadTagsView,
       meta: {
         title: '标签',
         description: '按标签查看文章主题，在写作、设计、工作流与生活节奏之间切换。',
@@ -55,5 +63,29 @@ const router = createRouter({
 router.afterEach((to) => {
   applyRouteSeo(to)
 })
+
+export function prefetchRouteComponents() {
+  const runPrefetch = () => {
+    routePrefetchers.forEach((loadView) => {
+      void loadView()
+    })
+  }
+
+  if (typeof window === 'undefined') {
+    runPrefetch()
+    return
+  }
+
+  const idleWindow = window as Window & {
+    requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number
+  }
+
+  if (typeof idleWindow.requestIdleCallback === 'function') {
+    idleWindow.requestIdleCallback(runPrefetch, { timeout: 1200 })
+    return
+  }
+
+  window.setTimeout(runPrefetch, 600)
+}
 
 export default router
