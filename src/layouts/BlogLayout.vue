@@ -94,7 +94,7 @@ onUnmounted(() => {
 
 <template>
   <SplashScreen @done="onSplashDone" />
-  <div class="particle-field" aria-hidden="true">
+  <div v-if="shellReady" class="particle-field" aria-hidden="true">
     <span
       v-for="p in particles"
       :key="p.id"
@@ -111,8 +111,12 @@ onUnmounted(() => {
       }"
     ></span>
   </div>
-  <CustomCursor />
-  <div class="blog-layout-wrapper" :class="{ 'shell-entered': shellReady }">
+  <CustomCursor v-if="shellReady" />
+  <div
+    v-show="shellReady"
+    class="blog-layout-wrapper"
+    :class="{ 'shell-entered': shellReady }"
+  >
     <div class="status-bar shell-enter-1">
       <div class="status-bar-section">
         <span class="status-bar-dot"></span>

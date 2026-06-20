@@ -124,7 +124,7 @@ onMounted(() => {
 .splash-overlay {
   position: fixed;
   inset: 0;
-  z-index: 9999;
+  z-index: 2147483646;
   background: #0a0a0a;
   display: grid;
   place-items: center;
