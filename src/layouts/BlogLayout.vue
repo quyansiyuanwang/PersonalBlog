@@ -461,7 +461,9 @@ onUnmounted(() => {
   min-width: 0;
   min-height: 0;
   border-left: 1px solid var(--line);
-  box-shadow: inset 1px 0 0 color-mix(in srgb, var(--line) 56%, transparent);
+  box-shadow:
+    inset 1px 0 0 color-mix(in srgb, var(--line) 56%, transparent),
+    inset 24px 0 80px rgba(184, 255, 202, 0.025);
   padding: 24px 92px 24px 28px;
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -489,8 +491,16 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   padding: 28px;
-  border-radius: 28px;
+  border: 1px solid color-mix(in srgb, var(--fui-border-color) 72%, transparent);
+  border-radius: 4px;
   overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(184, 255, 202, 0.045), transparent 22%),
+    repeating-linear-gradient(0deg, transparent 0 9px, rgba(184, 255, 202, 0.018) 10px),
+    color-mix(in srgb, var(--surface) 74%, transparent);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.025),
+    inset 0 0 36px rgba(184, 255, 202, 0.03);
   transition:
     width 0.46s ease,
     padding 0.46s ease,
@@ -500,17 +510,38 @@ onUnmounted(() => {
     transform 0.46s ease;
 }
 
+.left-panel-shell::before,
+.left-panel-shell::after {
+  content: "";
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--fui-cyan), transparent);
+  opacity: 0.34;
+  pointer-events: none;
+}
+
+.left-panel-shell::before {
+  top: 16px;
+}
+
+.left-panel-shell::after {
+  bottom: 16px;
+}
+
 .left-panel-hero {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 18px;
   padding: 16px;
-  border: 1px solid color-mix(in srgb, var(--fui-border-color) 70%, transparent);
-  border-radius: 22px;
+  border: 1px solid color-mix(in srgb, var(--fui-border-color) 82%, transparent);
+  border-radius: 2px;
   background:
-    linear-gradient(135deg, color-mix(in srgb, var(--accent-soft) 52%, transparent), transparent 58%),
-    color-mix(in srgb, var(--fui-widget-bg) 72%, transparent);
+    linear-gradient(135deg, color-mix(in srgb, var(--accent-soft) 74%, transparent), transparent 52%),
+    color-mix(in srgb, var(--dark-gray) 82%, transparent);
+  box-shadow: inset 0 -1px 0 rgba(184, 255, 202, 0.16);
   transition:
     opacity 0.46s ease,
     transform 0.46s ease,
@@ -533,29 +564,31 @@ onUnmounted(() => {
 
 .side-kicker {
   margin: 0 0 8px;
-  font-family: var(--font-mono);
+  font-family: var(--font-hud);
   font-size: 0.62rem;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.24em;
   color: var(--accent);
-  opacity: 0.72;
+  opacity: 0.86;
 }
 
 .left-panel-hero h3 {
   margin: 0;
   font-family: var(--font-heading);
-  font-size: 1.28rem;
+  font-size: clamp(1.25rem, 2.1vw, 2rem);
   line-height: 1.25;
+  letter-spacing: 0.13em;
   color: var(--text-main);
+  text-transform: uppercase;
 }
 
 .side-route-chip {
   max-width: 42%;
   padding: 6px 8px;
   border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
-  border-radius: 999px;
+  border-radius: 2px;
   overflow: hidden;
   color: var(--text-muted);
-  font-family: var(--font-mono);
+  font-family: var(--font-hud);
   font-size: 0.58rem;
   letter-spacing: 0.1em;
   text-overflow: ellipsis;
@@ -570,10 +603,10 @@ onUnmounted(() => {
   gap: 8px;
   padding: 8px 14px;
   border: 1px solid color-mix(in srgb, var(--fui-border-color) 94%, var(--line));
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--fui-widget-bg) 70%, transparent);
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--dark-gray) 78%, transparent);
   color: var(--text-muted);
-  font-family: var(--font-mono);
+  font-family: var(--font-hud);
   font-size: 0.7rem;
   letter-spacing: 0.1em;
   max-height: 42px;
@@ -661,9 +694,11 @@ onUnmounted(() => {
   height: 100%;
   overflow-y: auto;
   padding: 14px 10px 14px 14px;
-  border: 1px solid color-mix(in srgb, var(--line) 64%, transparent);
-  border-radius: 20px;
-  background: color-mix(in srgb, var(--page-bg) 58%, transparent);
+  border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  border-radius: 2px;
+  background:
+    linear-gradient(90deg, rgba(184, 255, 202, 0.04), transparent 36%),
+    color-mix(in srgb, var(--black) 34%, transparent);
   font-family: var(--font-mono);
   font-size: 0.76rem;
   line-height: 1.6;
@@ -671,7 +706,7 @@ onUnmounted(() => {
 
 .toc-title {
   margin: 0;
-  font-family: var(--font-mono);
+  font-family: var(--font-hud);
   font-size: 0.68rem;
   letter-spacing: 0.14em;
   color: var(--accent);
@@ -707,8 +742,8 @@ onUnmounted(() => {
 
 .toc-link:hover {
   color: var(--text-main);
-  padding-left: 4px;
-  background: color-mix(in srgb, var(--accent-soft) 40%, transparent);
+  padding-left: 8px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent-soft) 62%, transparent), transparent);
 }
 
 .toc-active .toc-link {
@@ -754,7 +789,6 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
   height: 100%;
   text-align: center;
   font-family: var(--font-mono);
@@ -786,13 +820,13 @@ onUnmounted(() => {
   gap: 6px;
   padding: 14px;
   border: 1px dashed color-mix(in srgb, var(--fui-border-color) 82%, transparent);
-  border-radius: 18px;
-  background: color-mix(in srgb, var(--fui-widget-bg) 78%, transparent);
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--dark-gray) 72%, transparent);
 }
 
 .side-meter span,
 .side-stats small {
-  font-family: var(--font-mono);
+  font-family: var(--font-hud);
   font-size: 0.58rem;
   letter-spacing: 0.14em;
   color: var(--text-muted);
@@ -818,8 +852,8 @@ onUnmounted(() => {
   display: grid;
   gap: 2px;
   padding: 12px;
-  border-radius: 16px;
-  background: color-mix(in srgb, var(--surface-strong) 56%, transparent);
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--surface-strong) 72%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--line) 48%, transparent);
 }
 
@@ -1034,7 +1068,7 @@ onUnmounted(() => {
   position: absolute;
   top: 0;
   right: 0;
-  width: 64px;
+  width: 56px;
   height: 100%;
   z-index: 2;
   pointer-events: none;
@@ -1049,45 +1083,60 @@ onUnmounted(() => {
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  gap: 32px;
+  gap: clamp(12px, 2.4vh, 26px);
   pointer-events: auto;
-  transform: perspective(600px) rotateY(-12deg) skewY(4deg) translateY(-50%);
+  transform: perspective(640px) rotateY(-8deg) skewY(2deg) translateY(-50%);
   transform-origin: right center;
 }
 
 .diagonal-link {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  padding: 10px 4px;
+  padding: 7px 3px 16px;
   border: 1px solid transparent;
-  border-radius: 16px;
+  border-radius: 0;
   color: var(--text-muted);
   text-decoration: none;
-  font-family: var(--font-mono);
-  font-size: 0.85rem;
-  letter-spacing: 0.14em;
+  font-family: var(--font-hud);
+  font-size: clamp(0.58rem, 0.66vw, 0.74rem);
+  letter-spacing: 0.2em;
   text-transform: uppercase;
   writing-mode: vertical-rl;
   transition:
     color 0.25s ease,
-    border-color 0.25s ease,
-    background 0.25s ease;
+    text-shadow 0.25s ease,
+    opacity 0.25s ease;
+}
+
+.diagonal-link::after {
+  content: "";
+  position: absolute;
+  right: 50%;
+  bottom: 0;
+  width: 1px;
+  height: 14px;
+  background: linear-gradient(180deg, currentColor, transparent);
+  opacity: 0.42;
+  transform: translateX(50%) skewY(-38deg);
+  transform-origin: top center;
 }
 
 .diagonal-link:hover,
 .diagonal-link.active {
   color: var(--accent);
-  border-color: color-mix(in srgb, var(--line) 88%, transparent);
-  background: color-mix(in srgb, var(--fui-widget-bg) 82%, transparent);
+  text-shadow:
+    0 0 8px color-mix(in srgb, var(--accent) 54%, transparent),
+    0 0 22px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
 .nav-dot {
   display: block;
-  width: 3px;
-  height: 3px;
-  margin-bottom: 4px;
+  width: 2px;
+  height: 2px;
+  margin-bottom: 2px;
   border-radius: 50%;
   background: currentColor;
   box-shadow: 0 0 4px currentColor;
@@ -1099,10 +1148,11 @@ onUnmounted(() => {
 }
 
 .nav-sublabel {
-  font-size: 0.65rem;
-  opacity: 0.45;
+  font-family: var(--font-mono);
+  font-size: 0.44rem;
+  opacity: 0.32;
   writing-mode: vertical-rl;
-  letter-spacing: 0.4em;
+  letter-spacing: 0.12em;
   transition: opacity 0.25s ease;
 }
 
@@ -1114,7 +1164,7 @@ onUnmounted(() => {
   position: absolute;
   top: 0;
   right: 0;
-  width: 2px;
+  width: 1px;
   height: 100%;
   background: linear-gradient(
     180deg,
@@ -1127,7 +1177,7 @@ onUnmounted(() => {
   box-shadow:
     0 0 8px var(--fui-cyan),
     0 0 20px var(--fui-cyan-dim);
-  opacity: 0.68;
+  opacity: 0.82;
   animation: frame-pulse 4s ease-in-out infinite;
   pointer-events: none;
 }
@@ -1135,7 +1185,7 @@ onUnmounted(() => {
 .glow-frame-inner {
   position: absolute;
   top: 10%;
-  right: 6px;
+  right: 12px;
   width: 1px;
   height: 80%;
   background: linear-gradient(
