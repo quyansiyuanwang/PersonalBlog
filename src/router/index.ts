@@ -2,18 +2,29 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { applyRouteSeo } from '../lib/seo'
 
 const loadHomeView = () => import('../views/HomeView.vue')
+const loadRoutesView = () => import('../views/RoutesView.vue')
 const loadPostDetailView = () => import('../views/PostDetailView.vue')
 const loadAboutView = () => import('../views/AboutView.vue')
 const loadArchiveView = () => import('../views/ArchiveView.vue')
 const loadTagsView = () => import('../views/TagsView.vue')
 
-const routePrefetchers = [loadHomeView, loadPostDetailView, loadAboutView, loadArchiveView, loadTagsView]
+const routePrefetchers = [loadHomeView, loadRoutesView, loadPostDetailView, loadAboutView, loadArchiveView, loadTagsView]
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     {
       path: '/',
+      alias: '/routes',
+      name: 'routes',
+      component: loadRoutesView,
+      meta: {
+        title: '大路由',
+        description: '以 3D 环形导航进入归档、标签、关于与首页模块。',
+      },
+    },
+    {
+      path: '/home',
       name: 'home',
       component: loadHomeView,
       meta: {

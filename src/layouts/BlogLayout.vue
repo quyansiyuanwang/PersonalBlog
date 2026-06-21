@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, ref, onMounted, onUnmounted, watch } from "vue";
+import {
+  computed,
+  defineAsyncComponent,
+  ref,
+  onMounted,
+  onUnmounted,
+  watch,
+} from "vue";
 import { RouterLink, RouterView, useRoute } from "vue-router";
 import { useSubtitle } from "../lib/subtitle";
 import { useTocState } from "../lib/tocKey";
@@ -15,40 +22,28 @@ const FuiMusicWidget = defineAsyncComponent(
 
 const route = useRoute();
 const leftPanelCollapsed = ref(false);
+const isPostRoute = computed(() => route.path.startsWith("/post"));
 const subtitle = useSubtitle();
-const playerExpanded = ref(false);
+const playerExpanded = ref(true);
 const shellMainRef = ref<HTMLElement | null>(null);
-const leftPanelRef = ref<HTMLElement | null>(null);
 const contentScrollRef = ref<HTMLElement | null>(null);
-let leftPanelReady = false;
-let leftPanelAnimationFrame: number | null = null;
 
 // ── TOC data from active post view ──
 const { headings: tocHeadings, activeId: tocActiveId, showToc } = useTocState();
-const activeHeadingText = computed(() => {
-  return tocHeadings.value.find((heading) => heading.id === tocActiveId.value)?.text ?? "等待定位";
-});
-
-// Auto-collapse left panel when no TOC, expand when TOC available
-watch(
-  showToc,
-  (hasToc) => {
-    const shouldCollapse = !hasToc;
-    if (leftPanelReady) {
-      animateLeftPanel(shouldCollapse);
-      return;
-    }
-
-    leftPanelCollapsed.value = shouldCollapse;
-  },
-  { immediate: true },
-);
 
 const navigationItems = [
-  { name: "首页", to: "/", label: "HOME" },
-  { name: "归档", to: "/archive", label: "ARCHIVE" },
-  { name: "标签", to: "/tags", label: "TAGS" },
-  { name: "关于", to: "/about", label: "ABOUT" },
+  { name: "首页", to: "/home", label: "HOME", jump: true, hide: false },
+  { name: "归档", to: "/archive", label: "ARCHIVE", jump: true, hide: false },
+  { name: "标签", to: "/tags", label: "TAGS", jump: true, hide: false },
+  { name: "关于", to: "/about", label: "ABOUT", jump: true, hide: false },
+  {
+    name: "返回",
+    to: "/back",
+    label: "BACK",
+    jump: false,
+    fn: () => window.history.back(),
+    hide: false,
+  },
 ];
 
 function isActiveRoute(path: string) {
@@ -59,74 +54,13 @@ function isActiveRoute(path: string) {
   return route.path === path;
 }
 
-function toggleLeftPanel() {
-  animateLeftPanel(!leftPanelCollapsed.value);
-}
-
-function easeOutQuart(progress: number) {
-  return 1 - Math.pow(1 - progress, 4);
-}
-
 function getExpandedLeftWidth(shellWidth: number) {
   return Math.round(shellWidth * 0.4);
 }
 
-function getCollapsedLeftWidth() {
-  return 116;
-}
-
-function animateLeftPanel(shouldCollapse: boolean) {
-  if (leftPanelCollapsed.value === shouldCollapse && !leftPanelAnimationFrame) {
-    return;
-  }
-
-  const shellMain = shellMainRef.value;
-  const leftPanel = leftPanelRef.value;
-
-  if (!shellMain || !leftPanel) {
-    leftPanelCollapsed.value = shouldCollapse;
-    return;
-  }
-
-  if (leftPanelAnimationFrame) {
-    cancelAnimationFrame(leftPanelAnimationFrame);
-    leftPanelAnimationFrame = null;
-  }
-
-  const shellWidth = shellMain.getBoundingClientRect().width;
-  const startWidth = leftPanel.getBoundingClientRect().width;
-  const targetWidth = shouldCollapse
-    ? getCollapsedLeftWidth()
-    : getExpandedLeftWidth(shellWidth);
-  const duration = 520;
-  const startedAt = performance.now();
-
-  shellMain.style.gridTemplateColumns = `${startWidth}px minmax(0, 1fr)`;
-  leftPanelCollapsed.value = shouldCollapse;
-
-  const tick = (now: number) => {
-    const elapsed = now - startedAt;
-    const progress = Math.min(elapsed / duration, 1);
-    const eased = easeOutQuart(progress);
-    const currentWidth = startWidth + (targetWidth - startWidth) * eased;
-
-    shellMain.style.gridTemplateColumns = `${currentWidth}px minmax(0, 1fr)`;
-
-    if (progress < 1) {
-      leftPanelAnimationFrame = requestAnimationFrame(tick);
-      return;
-    }
-
-    leftPanelAnimationFrame = null;
-    shellMain.style.gridTemplateColumns = "";
-  };
-
-  leftPanelAnimationFrame = requestAnimationFrame(tick);
-}
-
 function syncLeftPanelWidth() {
   const shellMain = shellMainRef.value;
-  if (!shellMain || leftPanelAnimationFrame) {
+  if (!shellMain) {
     return;
   }
 
@@ -160,6 +94,10 @@ watch(
 
 function getRouteDisplayLabel(path: string) {
   if (path === "/") {
+    return "ROUTES";
+  }
+
+  if (path === "/home") {
     return "HOME";
   }
 
@@ -192,7 +130,6 @@ interface Particle {
 
 const particles = ref<Particle[]>([]);
 onMounted(() => {
-  leftPanelReady = true;
   window.addEventListener("resize", syncLeftPanelWidth);
 
   const items: Particle[] = [];
@@ -234,10 +171,6 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener("resize", syncLeftPanelWidth);
-
-  if (leftPanelAnimationFrame) {
-    cancelAnimationFrame(leftPanelAnimationFrame);
-  }
 
   if (onlineTimer) {
     clearInterval(onlineTimer);
@@ -282,25 +215,44 @@ onUnmounted(() => {
         ref="shellMainRef"
         class="shell-main"
         :class="{
-          'reading-mode': route.path !== '/',
+          'reading-mode': route.name !== 'routes',
+          'post-reading-mode': isPostRoute,
           'left-collapsed': leftPanelCollapsed,
         }"
       >
         <aside
-          ref="leftPanelRef"
           class="left-panel shell-enter-3"
-          :class="{ collapsed: leftPanelCollapsed }"
+          :class="{ collapsed: leftPanelCollapsed, 'post-panel': isPostRoute }"
         >
           <div class="left-panel-shell">
-            <div class="left-panel-hero" :class="{ hidden: leftPanelCollapsed }">
-              <div>
-                <p class="side-kicker">READING CONSOLE</p>
-                <h3>{{ showToc ? "文章导航" : "站点索引" }}</h3>
+            <nav
+              v-if="route.name !== 'routes'"
+              class="diagonal-rail"
+              aria-label="主导航"
+            >
+              <div class="glow-frame" aria-hidden="true"></div>
+              <div class="glow-frame-inner" aria-hidden="true"></div>
+              <div class="diagonal-rail-inner">
+                <RouterLink
+                  v-for="(item, index) in navigationItems.filter(
+                    (i) => !i.hide,
+                  )"
+                  :key="item.jump ? item.to : ''"
+                  :to="item.jump ? item.to : ''"
+                  class="diagonal-link"
+                  :class="{ active: isActiveRoute(item.to) }"
+                  @click="item.fn?.()"
+                >
+                  <span class="nav-dot"></span>
+                  <span class="nav-card-index">{{
+                    String(index + 1).padStart(2, "0")
+                  }}</span>
+                  <span class="nav-label">{{ item.label }}</span>
+                  <span class="nav-sublabel">{{ item.name }}</span>
+                </RouterLink>
               </div>
-              <span class="side-route-chip">{{ getRouteDisplayLabel(route.path) }}</span>
-            </div>
-
-            <button
+            </nav>
+            <!-- <button
               class="left-panel-toggle"
               :class="{ hidden: leftPanelCollapsed }"
               type="button"
@@ -311,7 +263,7 @@ onUnmounted(() => {
               <span>{{ leftPanelCollapsed ? "TOC" : "MIN" }}</span>
               <span class="path-sep">//</span>
               <span>{{ leftPanelCollapsed ? "OPEN" : "PANEL" }}</span>
-            </button>
+            </button> -->
 
             <!-- TOC in left panel -->
             <div
@@ -346,12 +298,14 @@ onUnmounted(() => {
               </nav>
               <div v-else class="toc-empty">
                 <span class="toc-empty-icon">◈</span>
-                <span>查看博文时<br />此处显示目录</span>
               </div>
             </div>
 
-            <div class="left-panel-footer" :class="{ hidden: leftPanelCollapsed }">
-              <div class="side-meter">
+            <div
+              class="left-panel-footer"
+              :class="{ hidden: leftPanelCollapsed }"
+            >
+              <!-- <div class="side-meter">
                 <span>ACTIVE NODE</span>
                 <strong>{{ activeHeadingText }}</strong>
               </div>
@@ -364,7 +318,7 @@ onUnmounted(() => {
                   <strong>{{ showToc ? "ON" : "IDLE" }}</strong>
                   <small>目录</small>
                 </span>
-              </div>
+              </div> -->
             </div>
           </div>
         </aside>
@@ -396,24 +350,6 @@ onUnmounted(() => {
             </div>
           </div>
         </section>
-
-        <nav class="diagonal-rail">
-          <div class="glow-frame" aria-hidden="true"></div>
-          <div class="glow-frame-inner" aria-hidden="true"></div>
-          <div class="diagonal-rail-inner">
-            <RouterLink
-              v-for="item in navigationItems"
-              :key="item.to"
-              :to="item.to"
-              class="diagonal-link"
-              :class="{ active: isActiveRoute(item.to) }"
-            >
-              <span class="nav-dot"></span>
-              <span class="nav-label">{{ item.label }}</span>
-              <span class="nav-sublabel">{{ item.name }}</span>
-            </RouterLink>
-          </div>
-        </nav>
       </main>
     </div>
 
@@ -440,7 +376,7 @@ onUnmounted(() => {
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: minmax(30%, 40%) minmax(60%, 70%);
+  grid-template-columns: 40% 60%;
   flex: 1;
   min-height: 0;
   will-change: grid-template-columns;
@@ -448,6 +384,10 @@ onUnmounted(() => {
 
 .shell-main.left-collapsed {
   grid-template-columns: 116px minmax(0, 1fr);
+}
+
+.shell-main.post-reading-mode {
+  grid-template-columns: 22% minmax(0, 1fr);
 }
 
 .rail-label {
@@ -464,7 +404,7 @@ onUnmounted(() => {
   box-shadow:
     inset 1px 0 0 color-mix(in srgb, var(--line) 56%, transparent),
     inset 24px 0 80px rgba(184, 255, 202, 0.025);
-  padding: 24px 92px 24px 28px;
+  padding: 24px 28px;
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
@@ -481,6 +421,11 @@ onUnmounted(() => {
   background: transparent;
 }
 
+.left-panel.post-panel {
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
 .left-panel-shell {
   position: relative;
   display: flex;
@@ -489,14 +434,18 @@ onUnmounted(() => {
   justify-content: flex-start;
   gap: 18px;
   width: 100%;
-  height: 100%;
+  height: 70%;
   padding: 28px;
   border: 1px solid color-mix(in srgb, var(--fui-border-color) 72%, transparent);
   border-radius: 4px;
   overflow: hidden;
   background:
     linear-gradient(180deg, rgba(184, 255, 202, 0.045), transparent 22%),
-    repeating-linear-gradient(0deg, transparent 0 9px, rgba(184, 255, 202, 0.018) 10px),
+    repeating-linear-gradient(
+      0deg,
+      transparent 0 9px,
+      rgba(184, 255, 202, 0.018) 10px
+    ),
     color-mix(in srgb, var(--surface) 74%, transparent);
   box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.025),
@@ -508,6 +457,12 @@ onUnmounted(() => {
     box-shadow 0.46s ease,
     background 0.46s ease,
     transform 0.46s ease;
+}
+
+.left-panel.post-panel .left-panel-shell {
+  height: 100%;
+  min-height: 0;
+  padding-block: 18px;
 }
 
 .left-panel-shell::before,
@@ -539,7 +494,11 @@ onUnmounted(() => {
   border: 1px solid color-mix(in srgb, var(--fui-border-color) 82%, transparent);
   border-radius: 2px;
   background:
-    linear-gradient(135deg, color-mix(in srgb, var(--accent-soft) 74%, transparent), transparent 52%),
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--accent-soft) 74%, transparent),
+      transparent 52%
+    ),
     color-mix(in srgb, var(--dark-gray) 82%, transparent);
   box-shadow: inset 0 -1px 0 rgba(184, 255, 202, 0.16);
   transition:
@@ -634,7 +593,7 @@ onUnmounted(() => {
 }
 
 .left-panel-toggle.hidden {
-  width: 68px;
+  width: 42px;
   max-height: 120px;
   padding: 10px 8px;
   margin: auto 0;
@@ -702,6 +661,7 @@ onUnmounted(() => {
   font-family: var(--font-mono);
   font-size: 0.76rem;
   line-height: 1.6;
+  margin-right: 50%;
 }
 
 .toc-title {
@@ -743,7 +703,11 @@ onUnmounted(() => {
 .toc-link:hover {
   color: var(--text-main);
   padding-left: 8px;
-  background: linear-gradient(90deg, color-mix(in srgb, var(--accent-soft) 62%, transparent), transparent);
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--accent-soft) 62%, transparent),
+    transparent
+  );
 }
 
 .toc-active .toc-link {
@@ -819,7 +783,8 @@ onUnmounted(() => {
   display: grid;
   gap: 6px;
   padding: 14px;
-  border: 1px dashed color-mix(in srgb, var(--fui-border-color) 82%, transparent);
+  border: 1px dashed
+    color-mix(in srgb, var(--fui-border-color) 82%, transparent);
   border-radius: 2px;
   background: color-mix(in srgb, var(--dark-gray) 72%, transparent);
 }
@@ -886,7 +851,9 @@ onUnmounted(() => {
 }
 
 .floating-player.collapsed .floating-player-dock {
-  transform: translateX(calc(-100% + var(--player-ear-width) - var(--player-left-offset)));
+  transform: translateX(
+    calc(-100% + var(--player-ear-width) - var(--player-left-offset))
+  );
 }
 
 .floating-player-card {
@@ -1067,26 +1034,27 @@ onUnmounted(() => {
 .diagonal-rail {
   position: absolute;
   top: 0;
-  right: 0;
-  width: 56px;
+  right: 4px;
+  width: 54px;
   height: 100%;
   z-index: 2;
-  pointer-events: none;
+  overflow: visible;
+  pointer-events: auto;
 }
 
 .diagonal-rail-inner {
-  position: fixed;
+  position: absolute;
   right: 10px;
   top: 50%;
-  height: auto;
   display: flex;
   flex-direction: column;
-  justify-content: center;
   align-items: center;
-  gap: clamp(12px, 2.4vh, 26px);
+  gap: 20px;
+  width: 28px;
+  height: auto;
   pointer-events: auto;
-  transform: perspective(640px) rotateY(-8deg) skewY(2deg) translateY(-50%);
-  transform-origin: right center;
+  transform: translateY(-50%);
+  transform-origin: center;
 }
 
 .diagonal-link {
@@ -1094,53 +1062,69 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  padding: 7px 3px 16px;
-  border: 1px solid transparent;
-  border-radius: 0;
+  gap: 7px;
+  width: max-content;
+  min-height: 22px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
   color: var(--text-muted);
   text-decoration: none;
   font-family: var(--font-hud);
-  font-size: clamp(0.58rem, 0.66vw, 0.74rem);
-  letter-spacing: 0.2em;
+  font-size: 0.6rem;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  writing-mode: vertical-rl;
   transition:
     color 0.25s ease,
-    text-shadow 0.25s ease,
-    opacity 0.25s ease;
+    transform 0.25s ease,
+    opacity 0.25s ease,
+    text-shadow 0.25s ease;
 }
 
 .diagonal-link::after {
   content: "";
   position: absolute;
-  right: 50%;
-  bottom: 0;
+  top: 14px;
+  right: -6px;
+  bottom: auto;
   width: 1px;
-  height: 14px;
-  background: linear-gradient(180deg, currentColor, transparent);
-  opacity: 0.42;
-  transform: translateX(50%) skewY(-38deg);
-  transform-origin: top center;
+  height: 0;
+  background: currentColor;
+  opacity: 0.45;
+  transition: height 0.25s ease;
 }
 
 .diagonal-link:hover,
 .diagonal-link.active {
   color: var(--accent);
+  transform: translateX(-6px);
   text-shadow:
-    0 0 8px color-mix(in srgb, var(--accent) 54%, transparent),
-    0 0 22px color-mix(in srgb, var(--accent) 18%, transparent);
+    0 0 8px color-mix(in srgb, var(--accent) 46%, transparent),
+    0 0 18px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.diagonal-link:hover::after,
+.diagonal-link.active::after {
+  height: calc(100% - 12px);
 }
 
 .nav-dot {
   display: block;
-  width: 2px;
-  height: 2px;
-  margin-bottom: 2px;
+  width: 4px;
+  height: 4px;
   border-radius: 50%;
   background: currentColor;
   box-shadow: 0 0 4px currentColor;
   flex-shrink: 0;
+}
+
+.nav-card-index {
+  display: none;
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 0.52rem;
+  opacity: 0.68;
 }
 
 .diagonal-link.active .nav-dot {
@@ -1148,11 +1132,12 @@ onUnmounted(() => {
 }
 
 .nav-sublabel {
+  display: none;
+  grid-column: 2;
   font-family: var(--font-mono);
-  font-size: 0.44rem;
+  font-size: 0.48rem;
   opacity: 0.32;
-  writing-mode: vertical-rl;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.08em;
   transition: opacity 0.25s ease;
 }
 
@@ -1200,6 +1185,7 @@ onUnmounted(() => {
 }
 
 .nav-label {
+  writing-mode: vertical-rl;
   white-space: nowrap;
 }
 
@@ -1247,7 +1233,7 @@ onUnmounted(() => {
 
 .reading-mode .content-panel {
   padding-left: 28px;
-  padding-right: 100px;
+  padding-right: 28px;
 }
 
 .reading-mode .content-panel-scroll {
@@ -1315,6 +1301,10 @@ onUnmounted(() => {
 
   .shell-main.left-collapsed {
     grid-template-columns: 104px minmax(0, 1fr);
+  }
+
+  .shell-main.post-reading-mode {
+    grid-template-columns: minmax(150px, 24%) minmax(0, 1fr);
   }
 
   .left-panel {
