@@ -12,7 +12,6 @@ let canvasHeight = 0
 let devicePixelRatioValue = 1
 let idlePhase = 0
 
-const BAR_COUNT = 32
 const BAR_GAP = 2
 
 function resolveCssColor(varName: string): string {
