@@ -1,8 +1,22 @@
 :root {
-  --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, Consolas, monospace;
-  --font-serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', serif;
+  --black: #000000;
+  --dark-gray: #111111;
+  --gray: #333333;
+  --medium-gray: #777777;
+  --light-gray: #f1f1f1;
+  --white: #ffffff;
 
-  font-family: var(--font-serif);
+  --font-display: 'ZELDA Free', 'Noto Sans SC', 'PingFang SC', sans-serif;
+  --font-hud: 'Dosis', sans-serif;
+  --font-mono: 'Consolas', 'Menlo', 'Courier New', monospace;
+  --font-code: 'JetBrains Mono', 'Fira Code', monospace;
+  --font-typewriter: 'Courier Prime', 'Courier New', 'Consolas', monospace;
+  --font-family-heading: var(--font-hud);
+  --font-reading: 'Noto Serif SC', 'Source Han Serif SC', 'Noto Sans SC', serif;
+  --font-serif: var(--font-reading);
+  --font-heading: var(--font-display);
+
+  font-family: var(--font-reading);
   line-height: 1.8;
   font-weight: 400;
   font-synthesis: none;
@@ -568,7 +582,7 @@ img {
 
 .post-link h2 {
   margin: 0;
-  font-family: var(--font-serif);
+  font-family: var(--font-heading);
   font-size: 1.65rem;
   font-weight: 500;
   line-height: 1.22;
@@ -707,7 +721,7 @@ img {
 
 .markdown-body h1,
 .markdown-body h2 {
-  font-family: var(--font-mono);
+  font-family: var(--font-heading);
   letter-spacing: 0.03em;
 }
 
@@ -731,7 +745,7 @@ img {
 }
 
 .markdown-body pre code {
-  font-family: var(--font-mono);
+  font-family: var(--font-code);
   font-size: 0.82rem;
   line-height: 1.65;
   color: #d4d4d4;
@@ -741,7 +755,7 @@ img {
 
 /* inline code */
 .markdown-body :not(pre) > code {
-  font-family: var(--font-mono);
+  font-family: var(--font-code);
   font-size: 0.85em;
   padding: 0.2em 0.45em;
   border-radius: 4px;

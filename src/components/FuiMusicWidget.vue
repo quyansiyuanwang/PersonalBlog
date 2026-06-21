@@ -1,235 +1,260 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { musicTracks } from '../lib/music'
+import {
+  computed,
+  onBeforeUnmount,
+  onMounted,
+  reactive,
+  ref,
+  watch,
+} from "vue";
+import { musicTracks } from "../lib/music";
 
-const tracks = musicTracks
+const tracks = musicTracks;
 
 // ── audio element ──
-const audioRef = ref<HTMLAudioElement | null>(null)
+const audioRef = ref<HTMLAudioElement | null>(null);
 
 // ── reactive UI state ──
-const currentIndex = ref(0)
-const isPlaying = ref(false)
-const currentTime = ref(0)
-const duration = ref(0)
-const rotationDeg = ref(0)
+const currentIndex = ref(0);
+const isPlaying = ref(false);
+const currentTime = ref(0);
+const duration = ref(0);
+const rotationDeg = ref(0);
 
 // ── per-track state ──
-const TRACK_COUNT = tracks.length
+const TRACK_COUNT = tracks.length;
 
 // blob URL  once fetched
-const blobCache = reactive<(string | null)[]>(new Array(TRACK_COUNT).fill(null))
+const blobCache = reactive<(string | null)[]>(
+  new Array(TRACK_COUNT).fill(null),
+);
 // true while fetch is in-flight
-const fetchPending = reactive<boolean[]>(new Array(TRACK_COUNT).fill(false))
+const fetchPending = reactive<boolean[]>(new Array(TRACK_COUNT).fill(false));
 
 // which track is currently "loaded" into <audio>
-let loadedTrackIdx = -1
+let loadedTrackIdx = -1;
 
 // rotation loop
-let animationFrameId: number | null = null
-let lastFrameTime = 0
+let animationFrameId: number | null = null;
+let lastFrameTime = 0;
 
 // ── derived ──
-const currentTrack = computed(() => tracks[currentIndex.value])
+const currentTrack = computed(() => tracks[currentIndex.value]);
 
 const progressPercent = computed(() => {
-  if (!duration.value) return 0
-  return Math.min((currentTime.value / duration.value) * 100, 100)
-})
+  if (!duration.value) return 0;
+  return Math.min((currentTime.value / duration.value) * 100, 100);
+});
 
-const statusLabel = computed(() => {
-  if (fetchPending[currentIndex.value]) return '[BUFFER]'
-  if (!blobCache[currentIndex.value]) return '[LOAD]'
-  return isPlaying.value ? '[PLAY]' : '[PAUSE]'
-})
+// const statusLabel = computed(() => {
+//   if (fetchPending[currentIndex.value]) return '[BUFFER]'
+//   if (!blobCache[currentIndex.value]) return '[LOAD]'
+//   return isPlaying.value ? '[PLAY]' : '[PAUSE]'
+// })
 
 const currentTrackStateLabel = computed(() => {
-  if (fetchPending[currentIndex.value]) return 'LOADING'
-  if (isPlaying.value) return 'PLAYING'
-  if (blobCache[currentIndex.value]) return 'READY'
-  return 'LOAD'
-})
+  if (fetchPending[currentIndex.value]) return "LOADING";
+  if (isPlaying.value) return "PLAYING";
+  if (blobCache[currentIndex.value]) return "READY";
+  return "LOAD";
+});
 
-const armActive = computed(() => isPlaying.value)
+const armActive = computed(() => isPlaying.value);
 const recordStyle = computed(() => ({
   transform: `rotate(${rotationDeg.value}deg)`,
-}))
+}));
 
 // ── rotation ──
 function stopRotationLoop() {
   if (animationFrameId !== null) {
-    cancelAnimationFrame(animationFrameId)
-    animationFrameId = null
+    cancelAnimationFrame(animationFrameId);
+    animationFrameId = null;
   }
-  lastFrameTime = 0
+  lastFrameTime = 0;
 }
 
 function stepRotation(timestamp: number) {
-  if (!isPlaying.value) { stopRotationLoop(); return }
-  if (!lastFrameTime) lastFrameTime = timestamp
-  const delta = timestamp - lastFrameTime
-  lastFrameTime = timestamp
-  rotationDeg.value = (rotationDeg.value - delta * 0.042 + 360) % 360
-  animationFrameId = requestAnimationFrame(stepRotation)
+  if (!isPlaying.value) {
+    stopRotationLoop();
+    return;
+  }
+  if (!lastFrameTime) lastFrameTime = timestamp;
+  const delta = timestamp - lastFrameTime;
+  lastFrameTime = timestamp;
+  rotationDeg.value = (rotationDeg.value - delta * 0.042 + 360) % 360;
+  animationFrameId = requestAnimationFrame(stepRotation);
 }
 
 function startRotationLoop() {
-  if (animationFrameId !== null) return
-  animationFrameId = requestAnimationFrame(stepRotation)
+  if (animationFrameId !== null) return;
+  animationFrameId = requestAnimationFrame(stepRotation);
 }
 
 // ── helpers ──
 function formatTime(seconds: number) {
-  if (!Number.isFinite(seconds) || seconds <= 0) return '00:00'
-  const mins = Math.floor(seconds / 60)
-  const secs = Math.floor(seconds % 60)
-  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+  if (!Number.isFinite(seconds) || seconds <= 0) return "00:00";
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
 }
 
 function getTrackUrl(idx: number): string {
-  return new URL(tracks[idx].url, window.location.href).href
+  return new URL(tracks[idx].url, window.location.href).href;
 }
 
 // ── core: switch track ──
 function loadTrack(idx: number) {
-  const audio = audioRef.value
-  if (!audio) return
+  const audio = audioRef.value;
+  if (!audio) return;
 
   // already loaded
   if (loadedTrackIdx === idx && blobCache[idx]) {
     // just seek to 0 if needed
-    return
+    return;
   }
 
   // cached → apply blob URL immediately, zero network
   if (blobCache[idx]) {
-    audio.pause()
-    audio.src = blobCache[idx]!
-    loadedTrackIdx = idx
-    currentTime.value = 0
-    duration.value = audio.duration || duration.value
-    return
+    audio.pause();
+    audio.src = blobCache[idx]!;
+    loadedTrackIdx = idx;
+    currentTime.value = 0;
+    duration.value = audio.duration || duration.value;
+    return;
   }
 
   // fetch already in flight → do nothing, wait for it to land
-  if (fetchPending[idx]) return
+  if (fetchPending[idx]) return;
 
   // need to fetch
-  fetchPending[idx] = true
-  const url = getTrackUrl(idx)
+  fetchPending[idx] = true;
+  const url = getTrackUrl(idx);
 
   fetch(url)
     .then((res) => {
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      return res.blob()
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.blob();
     })
     .then((blob) => {
-      const blobUrl = URL.createObjectURL(blob)
-      blobCache[idx] = blobUrl
-      fetchPending[idx] = false
+      const blobUrl = URL.createObjectURL(blob);
+      blobCache[idx] = blobUrl;
+      fetchPending[idx] = false;
 
       // only apply if this is still the current track
-      if (currentIndex.value !== idx) return
+      if (currentIndex.value !== idx) return;
 
-      const a = audioRef.value
-      if (!a) return
+      const a = audioRef.value;
+      if (!a) return;
 
-      a.pause()
-      a.src = blobUrl
-      loadedTrackIdx = idx
-      currentTime.value = 0
-      duration.value = a.duration || duration.value
+      a.pause();
+      a.src = blobUrl;
+      loadedTrackIdx = idx;
+      currentTime.value = 0;
+      duration.value = a.duration || duration.value;
 
       if (isPlaying.value) {
-        a.play().catch(() => { isPlaying.value = false })
+        a.play().catch(() => {
+          isPlaying.value = false;
+        });
       }
     })
     .catch(() => {
-      fetchPending[idx] = false
+      fetchPending[idx] = false;
       if (currentIndex.value === idx) {
-        isPlaying.value = false
+        isPlaying.value = false;
       }
-    })
+    });
 
   // while fetching, clear current audio
-  audio.pause()
-  audio.removeAttribute('src')
-  loadedTrackIdx = -1
-  currentTime.value = 0
-  duration.value = 0
+  audio.pause();
+  audio.removeAttribute("src");
+  loadedTrackIdx = -1;
+  currentTime.value = 0;
+  duration.value = 0;
 }
 
 // ── playback ──
 function togglePlayback() {
-  const audio = audioRef.value
-  if (!audio) return
+  const audio = audioRef.value;
+  if (!audio) return;
 
   if (isPlaying.value) {
-    audio.pause()
-    return
+    audio.pause();
+    return;
   }
 
-  const idx = currentIndex.value
+  const idx = currentIndex.value;
   if (blobCache[idx] && loadedTrackIdx === idx) {
-    audio.play().catch(() => { isPlaying.value = false })
-    return
+    audio.play().catch(() => {
+      isPlaying.value = false;
+    });
+    return;
   }
 
   // not ready yet — start playing, loadTrack will auto-play when blob lands
-  isPlaying.value = true
-  loadTrack(idx)
+  isPlaying.value = true;
+  loadTrack(idx);
 }
 
 function playNext() {
-  currentIndex.value = (currentIndex.value + 1) % TRACK_COUNT
+  currentIndex.value = (currentIndex.value + 1) % TRACK_COUNT;
 }
 
 function selectTrack(index: number) {
-  if (index === currentIndex.value) return
-  currentIndex.value = index
+  if (index === currentIndex.value) return;
+  currentIndex.value = index;
 }
 
 function seekTrack(event: MouseEvent) {
-  const audio = audioRef.value
-  const target = event.currentTarget as HTMLButtonElement | null
-  if (!audio || !target || !duration.value) return
-  const rect = target.getBoundingClientRect()
-  const ratio = Math.min(Math.max((event.clientX - rect.left) / rect.width, 0), 1)
-  audio.currentTime = ratio * duration.value
+  const audio = audioRef.value;
+  const target = event.currentTarget as HTMLButtonElement | null;
+  if (!audio || !target || !duration.value) return;
+  const rect = target.getBoundingClientRect();
+  const ratio = Math.min(
+    Math.max((event.clientX - rect.left) / rect.width, 0),
+    1,
+  );
+  audio.currentTime = ratio * duration.value;
 }
 
 // ── audio events ──
 function handleTimeUpdate() {
-  const a = audioRef.value
-  if (!a) return
-  currentTime.value = a.currentTime
+  const a = audioRef.value;
+  if (!a) return;
+  currentTime.value = a.currentTime;
 }
-function handlePlay() { isPlaying.value = true }
-function handlePause() { isPlaying.value = false }
-function handleEnded() { playNext() }
+function handlePlay() {
+  isPlaying.value = true;
+}
+function handlePause() {
+  isPlaying.value = false;
+}
+function handleEnded() {
+  playNext();
+}
 function handleLoadedMetadata() {
-  const a = audioRef.value
-  if (!a) return
-  duration.value = a.duration
+  const a = audioRef.value;
+  if (!a) return;
+  duration.value = a.duration;
 }
 
 // ── watchers & lifecycle ──
 watch(currentIndex, (idx) => {
-  loadTrack(idx)
-})
+  loadTrack(idx);
+});
 
 watch(isPlaying, (p) => {
-  p ? startRotationLoop() : stopRotationLoop()
-})
+  p ? startRotationLoop() : stopRotationLoop();
+});
 
 onMounted(() => {
-  loadTrack(currentIndex.value)
-})
+  loadTrack(currentIndex.value);
+});
 
 onBeforeUnmount(() => {
-  stopRotationLoop()
-  audioRef.value?.pause()
-})
+  stopRotationLoop();
+  audioRef.value?.pause();
+});
 </script>
 
 <template>
@@ -244,11 +269,6 @@ onBeforeUnmount(() => {
       @play="handlePlay"
       @timeupdate="handleTimeUpdate"
     ></audio>
-
-    <div class="fui-widget-header">
-      <span class="fui-label">AUDIO_PLAYER</span>
-      <span class="fui-status">{{ statusLabel }}</span>
-    </div>
 
     <div class="vinyl-stage">
       <button
@@ -296,14 +316,19 @@ onBeforeUnmount(() => {
           <span class="fui-playlist-title">{{ track.title }}</span>
           <span class="fui-playlist-artist">{{ track.artist }}</span>
         </span>
-        <span class="fui-playlist-state">{{ currentTrack.id === track.id ? currentTrackStateLabel : 'QUEUE' }}</span>
+        <span class="fui-playlist-state">{{
+          currentTrack.id === track.id ? currentTrackStateLabel : "QUEUE"
+        }}</span>
       </button>
     </div>
 
     <div class="fui-progress">
       <span class="fui-time">{{ formatTime(currentTime) }}</span>
       <button class="fui-progress-bar" type="button" @click="seekTrack">
-        <div class="fui-progress-fill" :style="{ width: `${progressPercent}%` }"></div>
+        <div
+          class="fui-progress-fill"
+          :style="{ width: `${progressPercent}%` }"
+        ></div>
       </button>
       <span class="fui-time">{{ formatTime(duration) }}</span>
     </div>
@@ -314,17 +339,20 @@ onBeforeUnmount(() => {
 .fui-music-widget {
   border: 1px solid var(--fui-border-color);
   border-radius: 24px;
-  background:
-    radial-gradient(circle at top, rgba(255, 255, 255, 0.05), transparent 40%),
-    linear-gradient(180deg, rgba(0, 0, 0, 0.14), transparent 20%),
-    var(--fui-widget-bg);
   padding: 18px;
   font-family: var(--font-mono);
   font-size: 0.78rem;
   letter-spacing: 0.06em;
   color: var(--fui-cyan);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 18px 40px rgba(0, 0, 0, 0.18);
-  transition: opacity 0.25s ease, transform 0.25s ease;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 18px 40px rgba(0, 0, 0, 0.18);
+  transition:
+    opacity 0.25s ease,
+    transform 0.25s ease;
+  background: #111111;
+  width: max-content;
+  overflow: hidden;
 }
 
 .fui-widget-header {
@@ -350,7 +378,7 @@ onBeforeUnmount(() => {
   position: relative;
   width: 280px;
   height: 280px;
-  margin: 12px 0 18px;
+  /* margin: 12px 0 18px; */
   padding: 0;
   margin-inline: auto;
 }
@@ -362,8 +390,13 @@ onBeforeUnmount(() => {
   width: 240px;
   height: 240px;
   border-radius: 50%;
-  background:
-    radial-gradient(circle at center, #191919 0 14%, #060606 15% 29%, #101010 30% 46%, #050505 47% 100%);
+  background: radial-gradient(
+    circle at center,
+    #191919 0 14%,
+    #060606 15% 29%,
+    #101010 30% 46%,
+    #050505 47% 100%
+  );
   border: 1px solid rgba(255, 255, 255, 0.06);
   box-shadow:
     inset 0 0 0 2px rgba(255, 255, 255, 0.03),
@@ -398,7 +431,11 @@ onBeforeUnmount(() => {
   height: 88px;
   transform: translate(-50%, -50%);
   border-radius: 50%;
-  background: linear-gradient(135deg, color-mix(in srgb, var(--fui-cyan) 30%, #1a1a1a), #121212 70%);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--fui-cyan) 30%, #1a1a1a),
+    #121212 70%
+  );
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -475,7 +512,12 @@ onBeforeUnmount(() => {
   width: 26px;
   height: 26px;
   border-radius: 50%;
-  background: radial-gradient(circle at 35% 35%, #969696, #4e4e4e 55%, #222 100%);
+  background: radial-gradient(
+    circle at 35% 35%,
+    #969696,
+    #4e4e4e 55%,
+    #222 100%
+  );
   box-shadow:
     inset 0 0 5px rgba(255, 255, 255, 0.18),
     0 4px 10px rgba(0, 0, 0, 0.2);
@@ -488,12 +530,18 @@ onBeforeUnmount(() => {
   width: 8px;
   height: 156px;
   border-radius: 999px;
-  background: linear-gradient(180deg, #b3b3b3 0%, #d9d9d9 28%, #7d7d7d 75%, #5f5f5f 100%);
+  background: linear-gradient(
+    180deg,
+    #b3b3b3 0%,
+    #d9d9d9 28%,
+    #7d7d7d 75%,
+    #5f5f5f 100%
+  );
   box-shadow: 0 0 6px rgba(0, 0, 0, 0.18);
 }
 
 .tonearm-arm::after {
-  content: '';
+  content: "";
   position: absolute;
   left: 50%;
   bottom: -3px;
@@ -557,7 +605,10 @@ onBeforeUnmount(() => {
   background: color-mix(in srgb, var(--fui-widget-bg) 72%, transparent);
   color: inherit;
   text-align: left;
-  transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    transform 0.2s ease;
 }
 
 .fui-playlist-item:hover {
@@ -571,7 +622,11 @@ onBeforeUnmount(() => {
 }
 
 .fui-playlist-item.ready:not(.active) {
-  border-color: color-mix(in srgb, var(--fui-cyan) 35%, var(--fui-border-color));
+  border-color: color-mix(
+    in srgb,
+    var(--fui-cyan) 35%,
+    var(--fui-border-color)
+  );
 }
 
 .fui-playlist-copy {
@@ -652,7 +707,11 @@ onBeforeUnmount(() => {
   font-size: 0.76rem;
   opacity: 0.7;
   letter-spacing: 0.04em;
-  transition: opacity 0.2s, border-color 0.2s, transform 0.2s, background 0.2s;
+  transition:
+    opacity 0.2s,
+    border-color 0.2s,
+    transform 0.2s,
+    background 0.2s;
 }
 
 .fui-btn:hover {

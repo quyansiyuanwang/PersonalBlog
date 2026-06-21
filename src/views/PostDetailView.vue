@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch, provide } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import MarkdownRenderer from '../components/MarkdownRenderer.vue'
 import PostList from '../components/PostList.vue'
@@ -7,8 +7,7 @@ import PostMeta from '../components/PostMeta.vue'
 import { getPostBySlug, getRelatedPosts } from '../lib/posts'
 import { useScrollReveal } from '../lib/scrollReveal'
 import { useScrollSpy } from '../lib/scrollSpy'
-import { tocKey } from '../lib/tocKey'
-import type { HeadingItem } from '../components/MarkdownRenderer.vue'
+import { clearTocData, setTocData } from '../lib/tocKey'
 
 const route = useRoute()
 
@@ -18,26 +17,21 @@ const relatedPosts = computed(() => (post.value ? getRelatedPosts(post.value.slu
 const { observe } = useScrollReveal()
 
 const rendererRef = ref<InstanceType<typeof MarkdownRenderer> | null>(null)
-const headings = ref<HeadingItem[]>([])
 
-// Sync headings from renderer after mount / route change
-watch(() => route.params.slug, () => {
-  headings.value = []
+// Directly read the exposed headings ref from the renderer, reactive all the way down
+const headings = computed(() => {
+  return rendererRef.value?.headings ?? []
 })
-watch(
-  rendererRef,
-  () => {
-    if (rendererRef.value?.headings) {
-      headings.value = rendererRef.value.headings
-    }
-  },
-  { immediate: true, deep: false },
-)
 
 const { activeId } = useScrollSpy(headings)
 
-// Provide TOC data to parent BlogLayout so it renders in the left panel
-provide(tocKey, { headings, activeId })
+watch([headings, activeId], ([nextHeadings, nextActiveId]) => {
+  setTocData(nextHeadings, nextActiveId)
+}, { immediate: true })
+
+onUnmounted(() => {
+  clearTocData()
+})
 </script>
 
 <template>
