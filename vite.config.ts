@@ -5,8 +5,8 @@ import vueDevTools from "vite-plugin-vue-devtools";
 // https://vite.dev/config/
 export default defineConfig({
   base: "/",
-  plugins: [vue(), vueDevTools()],
   build: {
+    modulePreload: false,
     rollupOptions: {
       output: {
         manualChunks(id) {
@@ -41,4 +41,5 @@ export default defineConfig({
       },
     },
   },
+  plugins: [vue(), vueDevTools()],
 });
