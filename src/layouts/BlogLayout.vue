@@ -424,54 +424,6 @@ function syncLeftPanelGeometry() {
 
 function scrollToHeading(id: string) {
   requestHeadingVisible(id);
-
-  retryScrollToMountedHeading(id);
-}
-
-function retryScrollToMountedHeading(id: string, attempts = 0) {
-  if (scrollToMountedHeading(id) || attempts >= 12) {
-    return;
-  }
-
-  window.setTimeout(() => {
-    retryScrollToMountedHeading(id, attempts + 1);
-  }, 48);
-}
-
-function scrollToMountedHeading(id: string) {
-  const el = document.getElementById(id);
-
-  if (!el) {
-    return false;
-  }
-
-  if (shouldUseVerticalShellLayout()) {
-    const statusBarHeight = document.querySelector<HTMLElement>(".status-bar")?.offsetHeight ?? 0;
-    const targetTop = el.getBoundingClientRect().top + window.scrollY - statusBarHeight - 16;
-
-    window.scrollTo({
-      top: Math.max(0, targetTop),
-      behavior: "smooth",
-    });
-
-    return true;
-  }
-
-  const scroller = contentScrollRef.value;
-
-  if (scroller) {
-    const scrollerTop = scroller.getBoundingClientRect().top;
-    const targetTop = el.getBoundingClientRect().top;
-
-    scroller.scrollTo({
-      top: scroller.scrollTop + targetTop - scrollerTop - 12,
-      behavior: "smooth",
-    });
-
-    return true;
-  }
-
-  return false;
 }
 
 function tiltSignalCube(event: PointerEvent) {
@@ -1180,14 +1132,16 @@ onUnmounted(() => {
               <RouterView v-slot="{ Component }">
                 <Transition name="page" mode="out-in">
                   <Suspense>
-                    <component
-                      :is="Component"
-                      :key="
-                        String(
-                          route.name ?? route.path.split('/')[1] ?? route.path,
-                        )
-                      "
-                    />
+                    <div class="route-view-root">
+                      <component
+                        :is="Component"
+                        :key="
+                          String(
+                            route.name ?? route.path.split('/')[1] ?? route.path,
+                          )
+                        "
+                      />
+                    </div>
                     <template #fallback>
                       <div class="page-loading-shell" aria-live="polite" aria-busy="true">
                         <div class="page-loading-grid" aria-hidden="true">
@@ -2909,6 +2863,11 @@ onUnmounted(() => {
   padding: 8px 28px 40px 4px;
   scrollbar-width: none;
   -ms-overflow-style: none;
+}
+
+.route-view-root {
+  width: 100%;
+  min-width: 0;
 }
 
 .content-panel-scroll::-webkit-scrollbar {

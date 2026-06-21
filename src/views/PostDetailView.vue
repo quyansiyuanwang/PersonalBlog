@@ -7,7 +7,6 @@ import PostMeta from '../components/PostMeta.vue'
 import type { PostDetail } from '../types/post'
 import { getNextPost, getPostBySlug, getRelatedPosts, loadPostBySlug, prefetchPostBySlug } from '../lib/posts'
 import { useScrollReveal } from '../lib/scrollReveal'
-import { useScrollSpy } from '../lib/scrollSpy'
 import { clearTocData, setTocData, useTocState } from '../lib/tocKey'
 
 const route = useRoute()
@@ -28,7 +27,7 @@ const headings = computed(() => {
   return rendererRef.value?.headings ?? []
 })
 
-const { activeId } = useScrollSpy(headings)
+const activeId = computed(() => rendererRef.value?.activeHeadingId ?? null)
 
 async function hydratePost() {
   const slug = String(route.params.slug ?? '')
@@ -74,7 +73,7 @@ watch(() => route.params.slug, () => {
 watch(pendingHeadingRequest, (request) => {
   const id = request?.split(':')[0]
   if (id) {
-    rendererRef.value?.ensureHeadingVisible(id)
+    rendererRef.value?.ensureHeadingVisible(id, { scroll: true })
   }
 })
 
