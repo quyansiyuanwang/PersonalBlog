@@ -11,6 +11,8 @@ import { RouterLink, RouterView, useRoute } from "vue-router";
 import { useSubtitle } from "../lib/subtitle";
 import { useTocState } from "../lib/tocKey";
 import { warmupBackgroundResources } from "../lib/startup";
+import { useTheme } from "../lib/theme";
+import { getAllPosts } from "../lib/posts";
 import router from "../router/index.ts";
 
 const CustomCursor = defineAsyncComponent(
@@ -26,6 +28,7 @@ const leftPanelCollapsed = ref(false);
 const isPostRoute = computed(() => route.path.startsWith("/post"));
 const isLeftPanelHalfCollapsed = ref(false);
 const subtitle = useSubtitle();
+const { theme, toggleTheme } = useTheme();
 const playerExpanded = ref(true);
 const cubeTiltX = ref(-12);
 const cubeTiltY = ref(18);
@@ -36,6 +39,8 @@ const cubeFragments = ref<CubeFragment[]>([]);
 const shellMainRef = ref<HTMLElement | null>(null);
 const leftPanelShellRef = ref<HTMLElement | null>(null);
 const contentScrollRef = ref<HTMLElement | null>(null);
+const routeSearchQuery = ref("");
+const routeSearchFocused = ref(false);
 let leftPanelAnimationFrame: number | null = null;
 let leftPanelHeightAnimationFrame: number | null = null;
 let cubePhysicsFrame: number | null = null;
@@ -71,6 +76,14 @@ interface CubeFragment {
   size: number;
 }
 
+interface RouteSearchItem {
+  title: string;
+  subtitle: string;
+  description: string;
+  to: string;
+  keywords: string;
+}
+
 // ── TOC data from active post view ──
 const { headings: tocHeadings, activeId: tocActiveId, showToc } = useTocState();
 
@@ -89,12 +102,133 @@ const navigationItems = [
   },
 ];
 
+const routeSearchItems: RouteSearchItem[] = [
+  {
+    title: "ROUTES",
+    subtitle: "大路由",
+    description: "以 3D 环形导航进入各个内容模块。",
+    to: "/",
+    keywords: "routes 大路由 导航 home route",
+  },
+  {
+    title: "HOME",
+    subtitle: "文章入口",
+    description: "最近写作、归档和长期整理的文字记录。",
+    to: "/home",
+    keywords: "home 首页 blog 文章 写作",
+  },
+  {
+    title: "PORTFOLIO",
+    subtitle: "作品与实验",
+    description: "项目、界面实验和长期维护工具展示。",
+    to: "/portfolio",
+    keywords: "portfolio 作品 项目 实验 LanFlare NDKY AppServer",
+  },
+  {
+    title: "EXPERIENCE",
+    subtitle: "经验轨迹",
+    description: "工作方式、项目经验和阶段性复盘。",
+    to: "/experience",
+    keywords: "experience 经验 开源 协作 工程",
+  },
+  {
+    title: "ARCHIVE",
+    subtitle: "文章归档",
+    description: "按时间浏览所有文章。",
+    to: "/archive",
+    keywords: "archive 归档 文章 时间线",
+  },
+  {
+    title: "TAGS",
+    subtitle: "标签索引",
+    description: "按主题查看文章。",
+    to: "/tags",
+    keywords: "tags 标签 分类 主题",
+  },
+  {
+    title: "LIFE",
+    subtitle: "生活片段",
+    description: "阅读、生活、情绪和日常节奏。",
+    to: "/life",
+    keywords: "life 生活 阅读 日常",
+  },
+  {
+    title: "CONTACT",
+    subtitle: "联系节点",
+    description: "交流写作、界面、自动化和长期主义实践。",
+    to: "/contact",
+    keywords: "contact 联系 邮箱 交流",
+  },
+  {
+    title: "FRIENDS",
+    subtitle: "友链中继",
+    description: "值得长期阅读和交换灵感的站点。",
+    to: "/friends",
+    keywords: "friends 友链 站点 链接",
+  },
+  {
+    title: "ABOUT",
+    subtitle: "身份信息",
+    description: "作者、写作方式和内容组织思路。",
+    to: "/about",
+    keywords: "about 关于 作者 站点",
+  },
+  ...getAllPosts().map((post) => ({
+    title: post.frontmatter.title,
+    subtitle: post.frontmatter.tags.join(" / ") || "POST",
+    description: post.frontmatter.summary || post.excerpt,
+    to: `/post/${post.slug}`,
+    keywords: [
+      post.frontmatter.title,
+      post.frontmatter.summary,
+      post.excerpt,
+      post.frontmatter.tags.join(" "),
+      post.slug,
+    ].join(" "),
+  })),
+];
+
+const routeSearchResults = computed(() => {
+  const query = routeSearchQuery.value.trim().toLowerCase();
+
+  if (!query) {
+    return [];
+  }
+
+  return routeSearchItems
+    .filter((item) =>
+      [item.title, item.subtitle, item.description, item.keywords]
+        .join(" ")
+        .toLowerCase()
+        .includes(query),
+    )
+    .slice(0, 6);
+});
+
+const showRouteSearchResults = computed(
+  () => routeSearchFocused.value && routeSearchQuery.value.trim().length > 0,
+);
+
 function isActiveRoute(path: string) {
   if (path === "/tags") {
     return route.path.startsWith("/tags");
   }
 
   return route.path === path;
+}
+
+function goToRouteSearchItem(item: RouteSearchItem) {
+  routeSearchQuery.value = "";
+  routeSearchFocused.value = false;
+  void router.push(item.to);
+}
+
+function submitRouteSearch() {
+  const firstResult = routeSearchResults.value[0];
+
+  if (firstResult) {
+    goToRouteSearchItem(firstResult);
+  }
 }
 
 function getExpandedLeftWidth(shellWidth: number) {
@@ -697,6 +831,16 @@ onUnmounted(() => {
       <div class="status-bar-section">
         <span class="status-bar-sep">|</span>
         <span>{{ subtitle }}</span>
+        <button
+          class="theme-toggle"
+          type="button"
+          :aria-label="theme === 'dark' ? '切换到浅色主题' : '切换到深色主题'"
+          @click="toggleTheme"
+        >
+          <span>THEME</span>
+          <span class="path-sep">://</span>
+          <span>{{ theme === "dark" ? "DARK" : "LIGHT" }}</span>
+        </button>
       </div>
     </div>
 
@@ -909,6 +1053,34 @@ onUnmounted(() => {
                   {{ getRouteDisplayLabel(route.path) }}
                 </p>
               </div>
+              <form class="route-search" role="search" @submit.prevent="submitRouteSearch">
+                <span class="route-search-prefix">SEARCH</span>
+                <input
+                  v-model="routeSearchQuery"
+                  type="search"
+                  autocomplete="off"
+                  spellcheck="false"
+                  placeholder="pages / posts"
+                  aria-label="搜索页面和文章"
+                  @focus="routeSearchFocused = true"
+                  @blur="routeSearchFocused = false"
+                />
+                <div v-if="showRouteSearchResults" class="route-search-results">
+                  <button
+                    v-for="item in routeSearchResults"
+                    :key="item.to"
+                    type="button"
+                    class="route-search-result"
+                    @mousedown.prevent="goToRouteSearchItem(item)"
+                  >
+                    <strong>{{ item.title }}</strong>
+                    <small>{{ item.subtitle }}</small>
+                  </button>
+                  <p v-if="routeSearchResults.length === 0" class="route-search-empty">
+                    NO SIGNAL
+                  </p>
+                </div>
+              </form>
             </div>
 
             <div ref="contentScrollRef" class="content-panel-scroll">
@@ -964,10 +1136,100 @@ onUnmounted(() => {
 }
 
 .rail-label {
+  margin: 0;
   font-family: var(--font-mono);
   text-transform: uppercase;
   letter-spacing: 0.18em;
   font-size: 0.7rem;
+}
+
+.route-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: min(320px, 42vw);
+  padding: 6px 10px;
+  border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--surface) 76%, transparent);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.route-search-prefix {
+  color: var(--accent);
+  font-size: 0.58rem;
+  letter-spacing: 0.14em;
+  opacity: 0.72;
+}
+
+.route-search input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text-main);
+  font: inherit;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+}
+
+.route-search input::placeholder {
+  color: var(--text-muted);
+  opacity: 0.58;
+}
+
+.route-search-results {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 30;
+  display: grid;
+  gap: 6px;
+  width: min(360px, 72vw);
+  padding: 8px;
+  border: 1px solid color-mix(in srgb, var(--fui-border-color) 86%, var(--line));
+  background:
+    linear-gradient(135deg, rgba(184, 255, 202, 0.07), transparent 46%),
+    color-mix(in srgb, var(--surface) 94%, var(--black));
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.34);
+}
+
+.route-search-result {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-main);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.route-search-result:hover {
+  border-color: var(--accent);
+  background: var(--nav-hover-bg);
+}
+
+.route-search-result strong {
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+}
+
+.route-search-result small,
+.route-search-empty {
+  color: var(--text-muted);
+  font-size: 0.58rem;
+  letter-spacing: 0.1em;
+}
+
+.route-search-empty {
+  margin: 0;
+  padding: 8px 10px;
 }
 
 .cube-drop-lever {
@@ -2394,6 +2656,12 @@ onUnmounted(() => {
   .content-panel-head {
     padding-left: 0;
     padding-right: 0;
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .route-search {
+    width: 100%;
   }
 }
 </style>

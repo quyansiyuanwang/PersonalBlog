@@ -7,6 +7,7 @@ const rootDir = resolve(currentDir, '..')
 const contentDir = resolve(rootDir, 'content')
 const postsDir = resolve(contentDir, 'posts')
 const aboutFile = resolve(contentDir, 'about.md')
+const portfolioFile = resolve(contentDir, 'portfolio.md')
 const outputDir = resolve(rootDir, 'src/generated')
 const outputFile = resolve(outputDir, 'content.ts')
 
@@ -28,6 +29,7 @@ const postEntries = postFiles.map((fileName) => {
 })
 
 const aboutSource = readFileSync(aboutFile, 'utf8')
+const portfolioSource = readFileSync(portfolioFile, 'utf8')
 
 const output = `export const rawPostModules: Record<string, string> = {
 ${postEntries.join('\n')}
@@ -35,6 +37,10 @@ ${postEntries.join('\n')}
 
 export const rawAboutModule: Record<string, string> = {
   ${JSON.stringify('../content/about.md')}: \`${escapeTemplateLiteral(aboutSource)}\`,
+}
+
+export const rawPortfolioModule: Record<string, string> = {
+  ${JSON.stringify('../content/portfolio.md')}: \`${escapeTemplateLiteral(portfolioSource)}\`,
 }
 `
 

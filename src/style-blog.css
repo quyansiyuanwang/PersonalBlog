@@ -35,7 +35,7 @@
   --accent-soft: rgba(184, 255, 202, 0.12);
   --line: rgba(241, 241, 241, 0.13);
   --nav-hover-bg: rgba(184, 255, 202, 0.075);
-  --code-bg: #050606;
+  --code-bg: #020303;
   --status-bar-bg: rgba(7, 8, 8, 0.82);
   --shadow: none;
   --cursor-color: #b8ffca;
@@ -60,7 +60,7 @@
   --accent-soft: rgba(184, 255, 202, 0.13);
   --line: rgba(241, 241, 241, 0.14);
   --nav-hover-bg: rgba(184, 255, 202, 0.08);
-  --code-bg: #050606;
+  --code-bg: #020303;
   --status-bar-bg: rgba(7, 8, 8, 0.86);
   --cursor-color: #b8ffca;
   --glow: 0 0 16px;
@@ -313,15 +313,16 @@ img {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 18px;
+  padding: 4px 10px;
   border: 1px solid var(--line);
   border-radius: 20px;
   background: transparent;
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: 0.78rem;
+  font-size: 0.68rem;
   letter-spacing: 0.06em;
   transition: all 0.2s ease;
+  cursor: pointer;
 }
 
 .theme-toggle:hover {
@@ -658,6 +659,15 @@ img {
   margin: 0;
   color: var(--text-muted);
   line-height: 1.75;
+
+.markdown-body .route-feature-card h2 {
+  margin: 14px 0 8px !important;
+  font-family: var(--font-hud);
+  font-size: 1.35rem;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  text-shadow: none;
+}
 }
 
 .route-feature-list {
@@ -665,6 +675,12 @@ img {
   gap: 12px;
 }
 
+
+.markdown-body .route-feature-card p {
+  margin: 0 !important;
+  color: var(--text-muted);
+  line-height: 1.8;
+}
 .route-feature-row {
   display: grid;
   grid-template-columns: 110px minmax(0, 1fr);
@@ -1095,8 +1111,8 @@ img {
 .markdown-body pre {
   padding: 18px;
   background:
-    linear-gradient(135deg, rgba(64, 224, 208, 0.035), transparent 42%),
-    #030505;
+    linear-gradient(135deg, rgba(184, 255, 202, 0.025), transparent 42%),
+    var(--code-bg) !important;
   border: 1px solid color-mix(in srgb, var(--line) 66%, transparent);
   border-radius: 2px;
   box-shadow:
@@ -1110,7 +1126,7 @@ img {
   font-size: 0.82rem;
   line-height: 1.65;
   color: #aeb8b7;
-  background: none;
+  background: transparent !important;
   padding: 0;
 }
 

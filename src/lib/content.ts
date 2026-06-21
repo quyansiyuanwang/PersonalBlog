@@ -1,6 +1,6 @@
 import { parseFrontmatter } from './frontmatter'
 import type { Post, PostFrontmatter } from '../types/post'
-import { rawAboutModule, rawPostModules } from '../generated/content'
+import { rawAboutModule, rawPortfolioModule, rawPostModules } from '../generated/content'
 
 function normalizeFrontmatter(data: Record<string, unknown>, fallbackTitle: string): PostFrontmatter {
   const title = typeof data.title === 'string' && data.title.trim().length > 0 ? data.title.trim() : fallbackTitle
@@ -60,3 +60,4 @@ export const allPosts = Object.entries(rawPostModules)
   .sort((left, right) => +new Date(right.frontmatter.date) - +new Date(left.frontmatter.date))
 
 export const aboutPage = parseFrontmatter(Object.values(rawAboutModule)[0] ?? '')
+export const portfolioPage = parseFrontmatter(Object.values(rawPortfolioModule)[0] ?? '')

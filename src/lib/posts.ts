@@ -1,4 +1,4 @@
-import { aboutPage, allPosts } from './content'
+import { aboutPage, allPosts, portfolioPage } from './content'
 import type { ArchiveGroup, Post } from '../types/post'
 
 export function getAllPosts() {
@@ -50,4 +50,8 @@ export function getPostsByTag(tag: string) {
 
 export function getAboutContent() {
   return aboutPage.content
+}
+
+export function getPortfolioContent() {
+  return portfolioPage.content
 }
