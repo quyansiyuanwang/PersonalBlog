@@ -33,12 +33,20 @@ let isDisposed = false;
 let pendingScrollTargetId: string | null = null;
 let pendingScrollTargetFrame: number | null = null;
 let pendingScrollTargetIndex = -1;
+let pendingScrollAligning = false;
+let pendingScrollStableFrames = 0;
+let pendingScrollLastTop = -1;
+let pendingScrollIdleFrames = 0;
 
 const INITIAL_CHUNK_COUNT = 8;
 const MAX_CHUNK_LENGTH = 900;
 const DEFAULT_CHUNK_HEIGHT = 360;
 const OVERSCAN_PX = 1800;
-const SEEK_STEP_PX = 80;
+const SEEK_STEP_PX = 720;
+const ANCHOR_OFFSET_PX = 48;
+const ANCHOR_TOLERANCE_PX = 6;
+const ANCHOR_STABLE_FRAME_COUNT = 3;
+const ANCHOR_IDLE_FRAME_COUNT = 6;
 
 const chunks = computed(() => splitMarkdownIntoChunks(props.source));
 const visibleChunks = computed<VisibleChunk[]>(() => {
@@ -618,6 +626,10 @@ function resetRendering() {
   isDisposed = false;
   pendingScrollTargetId = null;
   pendingScrollTargetIndex = -1;
+  pendingScrollAligning = false;
+  pendingScrollStableFrames = 0;
+  pendingScrollLastTop = -1;
+  pendingScrollIdleFrames = 0;
   htmlCache.value = [];
   rangeStart.value = 0;
   rangeEnd.value = 0;
@@ -655,6 +667,10 @@ function ensureHeadingVisible(id: string, options: { scroll?: boolean } = {}) {
   if (options.scroll) {
     pendingScrollTargetId = id;
     pendingScrollTargetIndex = index;
+    pendingScrollAligning = false;
+    pendingScrollStableFrames = 0;
+    pendingScrollLastTop = -1;
+    pendingScrollIdleFrames = 0;
     schedulePendingScrollCorrection();
     return;
   }
@@ -699,20 +715,61 @@ function correctPendingScrollTarget() {
   const target = document.getElementById(id);
 
   if (!target) {
+    pendingScrollAligning = false;
+    pendingScrollStableFrames = 0;
+    pendingScrollLastTop = -1;
+    pendingScrollIdleFrames = 0;
     seekTowardPendingTarget();
+    schedulePendingScrollCorrection();
+    return;
+  }
+
+  const alignment = scrollToAnchor(id, pendingScrollAligning);
+
+  if (!alignment.aligned) {
+    pendingScrollAligning = alignment.started;
+    pendingScrollStableFrames = 0;
+
+    const currentTop = getScrollMetrics().scrollTop;
+    if (Math.abs(currentTop - pendingScrollLastTop) < 1) {
+      pendingScrollIdleFrames += 1;
+    } else {
+      pendingScrollIdleFrames = 0;
+    }
+
+    pendingScrollLastTop = currentTop;
+
+    if (pendingScrollIdleFrames >= ANCHOR_IDLE_FRAME_COUNT) {
+      pendingScrollAligning = false;
+      pendingScrollIdleFrames = 0;
+    }
+
+    schedulePendingScrollCorrection();
+    return;
+  }
+
+  pendingScrollStableFrames += 1;
+  pendingScrollIdleFrames = 0;
+
+  if (pendingScrollStableFrames < ANCHOR_STABLE_FRAME_COUNT) {
+    pendingScrollAligning = true;
     schedulePendingScrollCorrection();
     return;
   }
 
   pendingScrollTargetId = null;
   pendingScrollTargetIndex = -1;
-  scrollToAnchor(id, true);
+  pendingScrollAligning = false;
+  pendingScrollStableFrames = 0;
+  pendingScrollLastTop = -1;
+  pendingScrollIdleFrames = 0;
+  syncActiveHeading();
 }
 
 function getEstimatedScrollTopForIndex(index: number) {
   const scroller = getScrollParent();
   const container = containerRef.value;
-  const targetTop = Math.max(0, getOffsetForIndex(index) - 12);
+  const targetTop = Math.max(0, getOffsetForIndex(index) - ANCHOR_OFFSET_PX);
 
   if (scroller) {
     const containerOffset = container
@@ -725,7 +782,7 @@ function getEstimatedScrollTopForIndex(index: number) {
   }
 
   const containerTop = container?.getBoundingClientRect().top ?? 0;
-  return Math.max(0, window.scrollY + containerTop + targetTop - 16);
+  return Math.max(0, window.scrollY + containerTop + targetTop - ANCHOR_OFFSET_PX);
 }
 
 function seekTowardPendingTarget() {
@@ -773,12 +830,12 @@ function seekTowardPendingTarget() {
   scheduleMeasureVisibleChunks();
 }
 
-function scrollToAnchor(id: string, controlled = false) {
+function scrollToAnchor(id: string, alreadyStarted = false) {
   const target = document.getElementById(id);
   const container = containerRef.value;
 
   if (!target || !container) {
-    return;
+    return { aligned: false, started: alreadyStarted };
   }
 
   const scroller = getScrollParent();
@@ -790,59 +847,44 @@ function scrollToAnchor(id: string, controlled = false) {
       target.getBoundingClientRect().top +
       window.scrollY -
       statusBarHeight -
-      16;
+      ANCHOR_OFFSET_PX;
     const nextTop = Math.max(0, top);
 
-    if (Math.abs(window.scrollY - nextTop) > 8) {
-      if (controlled) {
-        const delta = nextTop - window.scrollY;
-        window.scrollTo({
-          top: Math.max(
-            0,
-            window.scrollY + Math.sign(delta) * Math.min(Math.abs(delta), SEEK_STEP_PX),
-          ),
-          behavior: "auto",
-        });
-        window.requestAnimationFrame(() => scrollToAnchor(id, true));
-        return;
+    if (Math.abs(window.scrollY - nextTop) > ANCHOR_TOLERANCE_PX) {
+      if (alreadyStarted) {
+        return { aligned: false, started: true };
       }
 
       window.scrollTo({
         top: nextTop,
-        behavior: Math.abs(window.scrollY - nextTop) > 900 ? "auto" : "smooth",
+        behavior: "smooth",
       });
+      return { aligned: false, started: true };
     }
 
-    return;
+    return { aligned: true, started: alreadyStarted };
   }
 
   const scrollerTop = scroller.getBoundingClientRect().top;
   const targetTop = target.getBoundingClientRect().top;
   const nextTop = Math.max(
     0,
-    scroller.scrollTop + targetTop - scrollerTop - 12,
+    scroller.scrollTop + targetTop - scrollerTop - ANCHOR_OFFSET_PX,
   );
 
-  if (Math.abs(scroller.scrollTop - nextTop) > 8) {
-    if (controlled) {
-      const delta = nextTop - scroller.scrollTop;
-      scroller.scrollTo({
-        top: Math.max(
-          0,
-          scroller.scrollTop + Math.sign(delta) * Math.min(Math.abs(delta), SEEK_STEP_PX),
-        ),
-        behavior: "auto",
-      });
-      window.requestAnimationFrame(() => scrollToAnchor(id, true));
-      return;
+  if (Math.abs(scroller.scrollTop - nextTop) > ANCHOR_TOLERANCE_PX) {
+    if (alreadyStarted) {
+      return { aligned: false, started: true };
     }
 
     scroller.scrollTo({
       top: nextTop,
-      behavior:
-        Math.abs(scroller.scrollTop - nextTop) > 900 ? "auto" : "smooth",
+      behavior: "smooth",
     });
+    return { aligned: false, started: true };
   }
+
+  return { aligned: true, started: alreadyStarted };
 }
 
 function handleMarkdownClick(event: MouseEvent) {
