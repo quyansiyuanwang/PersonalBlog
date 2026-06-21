@@ -29,6 +29,7 @@ const chunkHeights = ref<number[]>([])
 let idleHandle: number | null = null
 let timeoutHandle: number | null = null
 let scrollAnimationFrame: number | null = null
+let postRenderAnimationFrame: number | null = null
 let lastPointerMoveAt = 0
 let lastScrollAt = 0
 let activeScrollParent: HTMLElement | Window | null = null
@@ -60,6 +61,7 @@ const visibleChunks = computed<VisibleChunk[]>(() => {
 
   return result
 })
+const visibleChunkKey = computed(() => `${rangeStart.value}:${rangeEnd.value}:${renderedCount.value}`)
 
 function splitOversizedChunk(chunk: string) {
   if (chunk.length <= MAX_CHUNK_LENGTH) {
@@ -221,8 +223,29 @@ async function renderMermaid() {
 
   try {
     const mermaid = await import('mermaid')
-    mermaid.default.initialize({ startOnLoad: false, theme: 'neutral' })
-    await mermaid.default.run({ nodes: Array.from(blocks) })
+    mermaid.default.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'loose' })
+
+    await Promise.all(Array.from(blocks).map(async (block, index) => {
+      const source = block.textContent?.trim() ?? ''
+
+      if (!source) {
+        return
+      }
+
+      try {
+        const id = `mermaid-${Date.now()}-${index}-${Math.random().toString(36).slice(2)}`
+        const { svg, bindFunctions } = await mermaid.default.render(id, source)
+        block.innerHTML = svg
+        block.dataset.processed = 'true'
+        bindFunctions?.(block)
+      } catch (error) {
+        block.classList.add('mermaid-error')
+        block.dataset.processed = 'true'
+        block.textContent = source
+        console.warn('Mermaid render failed:', error)
+      }
+    }))
+
     scheduleMeasureVisibleChunks()
   } catch {
     // mermaid failed silently — raw code is still visible
@@ -364,6 +387,19 @@ function scheduleMeasureVisibleChunks() {
   })
 }
 
+function schedulePostRenderWork() {
+  if (postRenderAnimationFrame !== null || typeof window === 'undefined') {
+    return
+  }
+
+  postRenderAnimationFrame = window.requestAnimationFrame(() => {
+    postRenderAnimationFrame = null
+    prepareImages()
+    void renderMermaid()
+    scheduleMeasureVisibleChunks()
+  })
+}
+
 function scheduleVisibleRangeUpdate() {
   if (scrollAnimationFrame !== null || typeof window === 'undefined') {
     return
@@ -402,9 +438,7 @@ function scheduleNextChunk() {
     updateVisibleRange()
 
     void nextTick(() => {
-      prepareImages()
-      void renderMermaid()
-      scheduleMeasureVisibleChunks()
+      schedulePostRenderWork()
       if (hasRemainingChunks.value) {
         scheduleNextChunk()
       }
@@ -487,9 +521,7 @@ function resetRendering() {
   void nextTick(() => {
     bindScrollParent()
     updateVisibleRange()
-    prepareImages()
-    void renderMermaid()
-    scheduleMeasureVisibleChunks()
+    schedulePostRenderWork()
     if (hasRemainingChunks.value) {
       scheduleNextChunk()
     }
@@ -509,9 +541,7 @@ function ensureHeadingVisible(id: string) {
   rangeEnd.value = Math.min(renderedCount.value, index + 6)
 
   void nextTick(() => {
-    prepareImages()
-    void renderMermaid()
-    scheduleMeasureVisibleChunks()
+    schedulePostRenderWork()
     if (hasRemainingChunks.value) {
       scheduleNextChunk()
     }
@@ -568,6 +598,12 @@ watch([chunks, () => props.assetBase], () => {
   resetRendering()
 }, { immediate: true })
 
+watch(visibleChunkKey, () => {
+  void nextTick(() => {
+    schedulePostRenderWork()
+  })
+})
+
 if (typeof window !== 'undefined') {
   window.addEventListener('pointermove', notePointerActivity, { passive: true })
 }
@@ -578,6 +614,10 @@ onBeforeUnmount(() => {
 
     if (scrollAnimationFrame !== null) {
       window.cancelAnimationFrame(scrollAnimationFrame)
+    }
+
+    if (postRenderAnimationFrame !== null) {
+      window.cancelAnimationFrame(postRenderAnimationFrame)
     }
   }
 

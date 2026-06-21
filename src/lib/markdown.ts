@@ -88,7 +88,7 @@ mdAny.renderer.rules.fence = (tokens: any[], idx: number, options: any, env: any
   const token = tokens[idx]
   const lang = token.info.trim().split(/\s+/g)[0]
   if (lang === 'mermaid') {
-    return `<div class="mermaid">${token.content}</div>`
+    return `<div class="mermaid">${markdown.utils.escapeHtml(token.content)}</div>`
   }
   return defaultFence(tokens, idx, options, env, self)
 }
