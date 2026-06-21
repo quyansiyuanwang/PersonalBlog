@@ -10,11 +10,12 @@ export interface HeadingItem {
 
 const props = defineProps<{
   source: string
+  assetBase?: string
 }>()
 
 const containerRef = ref<HTMLDivElement | null>(null)
 const headings = ref<HeadingItem[]>([])
-const html = computed(() => renderMarkdown(props.source))
+const html = computed(() => renderMarkdown(props.source, { assetBase: props.assetBase }))
 
 function extractHeadings() {
   const el = containerRef.value
@@ -59,12 +60,36 @@ async function renderMermaid() {
   }
 }
 
+function replaceMissingImage(image: HTMLImageElement) {
+  const source = image.currentSrc || image.src || image.getAttribute('src') || 'image'
+  const fallback = document.createElement('span')
+  fallback.className = 'markdown-image-fallback'
+  fallback.textContent = `Image not found: ${source.split('/').pop() ?? source}`
+  image.replaceWith(fallback)
+}
+
+function prepareImages() {
+  const el = containerRef.value
+  if (!el) return
+
+  el.querySelectorAll<HTMLImageElement>('img.markdown-image:not([data-fallback-ready])').forEach((image) => {
+    image.dataset.fallbackReady = 'true'
+    image.addEventListener('error', () => replaceMissingImage(image), { once: true })
+
+    if (image.complete && image.naturalWidth === 0) {
+      replaceMissingImage(image)
+    }
+  })
+}
+
 onMounted(() => {
+  prepareImages()
   renderMermaid()
   extractHeadings()
 })
 
 watch(html, () => {
+  nextTick(() => prepareImages())
   renderMermaid()
   // headings may render after mermaid, wait for DOM update
   nextTick(() => extractHeadings())

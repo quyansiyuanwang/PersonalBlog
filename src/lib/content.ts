@@ -1,5 +1,5 @@
 import { parseFrontmatter } from './frontmatter'
-import type { Post, PostDetail, PostFrontmatter } from '../types/post'
+import type { PostDetail, PostFrontmatter } from '../types/post'
 import { postMetaModules, rawPageModules, rawPostModules } from '../generated/content'
 
 function normalizeFrontmatter(data: Record<string, unknown>, fallbackTitle: string): PostFrontmatter {

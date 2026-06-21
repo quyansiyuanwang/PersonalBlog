@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { renderMarkdown } from '../lib/markdown'
 
 export interface HeadingItem {
@@ -10,23 +10,27 @@ export interface HeadingItem {
 
 const props = defineProps<{
   source: string
+  assetBase?: string
 }>()
 
 const containerRef = ref<HTMLDivElement | null>(null)
 const renderedCount = ref(0)
 const headings = ref<HeadingItem[]>([])
-const htmlChunks = ref<string[]>([])
+const htmlCache = ref<string[]>([])
 
 let idleHandle: number | null = null
 let timeoutHandle: number | null = null
 let lastPointerMoveAt = 0
+let lastScrollAt = 0
 
-const POINTER_GRACE_MS = 140
+const INITIAL_CHUNK_COUNT = 5
+const CHUNKS_PER_BATCH = 3
+const MAX_CHUNK_LENGTH = 1000
+const POINTER_GRACE_MS = 120
+const SCROLL_GRACE_MS = 120
 
 function splitOversizedChunk(chunk: string) {
-  const maxLength = 1800
-
-  if (chunk.length <= maxLength) {
+  if (chunk.length <= MAX_CHUNK_LENGTH) {
     return [chunk]
   }
 
@@ -43,7 +47,7 @@ function splitOversizedChunk(chunk: string) {
     current.push(line)
 
     const currentText = current.join('\n')
-    if (!inFence && !line.trim() && currentText.length >= maxLength) {
+    if (!inFence && (!line.trim() || /^#{1,6}\s+/.test(line)) && currentText.length >= MAX_CHUNK_LENGTH) {
       parts.push(currentText.trim())
       current = []
     }
@@ -92,7 +96,7 @@ function splitMarkdownIntoChunks(source: string) {
 }
 
 const chunks = computed(() => splitMarkdownIntoChunks(props.source))
-const visibleHtml = computed(() => htmlChunks.value.slice(0, renderedCount.value).join('\n'))
+const visibleHtmlChunks = computed(() => htmlCache.value.slice(0, renderedCount.value))
 const hasRemainingChunks = computed(() => renderedCount.value < chunks.value.length)
 
 function slugifyHeading(text: string) {
@@ -140,12 +144,16 @@ const chunkHeadings = computed(() => {
   })
 })
 
+function getIdleWindow() {
+  return window as Window & {
+    requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number
+    cancelIdleCallback?: (handle: number) => void
+  }
+}
+
 function clearScheduledAppend() {
   if (idleHandle !== null && typeof window !== 'undefined') {
-    const idleWindow = window as Window & {
-      cancelIdleCallback?: (handle: number) => void
-    }
-    idleWindow.cancelIdleCallback?.(idleHandle)
+    getIdleWindow().cancelIdleCallback?.(idleHandle)
     idleHandle = null
   }
 
@@ -156,17 +164,21 @@ function clearScheduledAppend() {
 }
 
 function syncHeadings() {
-  headings.value = chunkHeadings.value.slice(0, renderedCount.value).flat()
+  headings.value = chunkHeadings.value.flat()
 }
 
 function ensureRenderedChunks(nextCount: number) {
-  for (let index = htmlChunks.value.length; index < nextCount; index += 1) {
+  const nextHtmlCache = htmlCache.value.slice()
+
+  for (let index = htmlCache.value.length; index < nextCount; index += 1) {
     const chunk = chunks.value[index]
 
     if (chunk) {
-      htmlChunks.value.push(renderMarkdown(chunk))
+      nextHtmlCache.push(renderMarkdown(chunk, { assetBase: props.assetBase }))
     }
   }
+
+  htmlCache.value = nextHtmlCache
 }
 
 async function renderMermaid() {
@@ -186,6 +198,33 @@ async function renderMermaid() {
   }
 }
 
+function replaceMissingImage(image: HTMLImageElement) {
+  const source = image.currentSrc || image.src || image.getAttribute('src') || 'image'
+  const fallback = document.createElement('span')
+  fallback.className = 'markdown-image-fallback'
+  fallback.textContent = `Image not found: ${source.split('/').pop() ?? source}`
+  image.replaceWith(fallback)
+}
+
+function prepareImages() {
+  const el = containerRef.value
+  if (!el) return
+
+  el.querySelectorAll<HTMLImageElement>('img.markdown-image:not([data-fallback-ready])').forEach((image) => {
+    image.dataset.fallbackReady = 'true'
+    image.addEventListener('error', () => replaceMissingImage(image), { once: true })
+
+    if (image.complete && image.naturalWidth === 0) {
+      replaceMissingImage(image)
+    }
+  })
+}
+
+function isUserInteracting() {
+  const now = performance.now()
+  return now - lastPointerMoveAt < POINTER_GRACE_MS || now - lastScrollAt < SCROLL_GRACE_MS
+}
+
 function scheduleNextChunk() {
   clearScheduledAppend()
 
@@ -194,88 +233,119 @@ function scheduleNextChunk() {
   }
 
   const append = () => {
-    if (performance.now() - lastPointerMoveAt < POINTER_GRACE_MS) {
+    if (isUserInteracting()) {
       timeoutHandle = window.setTimeout(() => {
         timeoutHandle = null
         scheduleNextChunk()
-      }, POINTER_GRACE_MS)
+      }, Math.max(POINTER_GRACE_MS, SCROLL_GRACE_MS))
       return
     }
 
-    const nextCount = Math.min(renderedCount.value + 2, chunks.value.length)
+    const nextCount = Math.min(renderedCount.value + CHUNKS_PER_BATCH, chunks.value.length)
     ensureRenderedChunks(nextCount)
     renderedCount.value = nextCount
+
     void nextTick(() => {
-      syncHeadings()
+      prepareImages()
+      void renderMermaid()
       if (hasRemainingChunks.value) {
         scheduleNextChunk()
       }
     })
   }
 
-  const idleWindow = window as Window & {
-    requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number
-  }
+  const idleWindow = getIdleWindow()
 
   if (typeof idleWindow.requestIdleCallback === 'function') {
     idleHandle = idleWindow.requestIdleCallback(() => {
       idleHandle = null
       append()
-    }, { timeout: 320 })
+    }, { timeout: 180 })
     return
   }
 
   timeoutHandle = window.setTimeout(() => {
     timeoutHandle = null
     append()
-  }, 48)
+  }, 32)
 }
 
 function notePointerActivity() {
   lastPointerMoveAt = performance.now()
 }
 
+function noteScrollActivity() {
+  lastScrollAt = performance.now()
+}
+
 function resetRendering() {
   clearScheduledAppend()
-  htmlChunks.value = []
-  const initialCount = Math.min(chunks.value.length, 2)
+  htmlCache.value = []
+  const initialCount = Math.min(chunks.value.length, INITIAL_CHUNK_COUNT)
   ensureRenderedChunks(initialCount)
   renderedCount.value = initialCount
+  syncHeadings()
+
   void nextTick(() => {
-    syncHeadings()
+    prepareImages()
+    void renderMermaid()
     if (hasRemainingChunks.value) {
       scheduleNextChunk()
     }
   })
 }
 
-watch(chunks, () => {
+function ensureHeadingVisible(id: string) {
+  const index = chunkHeadings.value.findIndex((items) => items.some((item) => item.id === id))
+
+  if (index < 0 || index < renderedCount.value) {
+    return
+  }
+
+  clearScheduledAppend()
+  const nextCount = Math.min(chunks.value.length, index + 1)
+  ensureRenderedChunks(nextCount)
+  renderedCount.value = nextCount
+
+  void nextTick(() => {
+    prepareImages()
+    void renderMermaid()
+    if (hasRemainingChunks.value) {
+      scheduleNextChunk()
+    }
+  })
+}
+
+watch([chunks, () => props.assetBase], () => {
   resetRendering()
 }, { immediate: true })
 
-watch(visibleHtml, () => {
-  void nextTick(() => {
-    syncHeadings()
-    void renderMermaid()
-  })
-})
-
-onMounted(() => {
+if (typeof window !== 'undefined') {
   window.addEventListener('pointermove', notePointerActivity, { passive: true })
-  resetRendering()
-})
+  window.addEventListener('scroll', noteScrollActivity, { passive: true, capture: true })
+}
 
 onBeforeUnmount(() => {
-  window.removeEventListener('pointermove', notePointerActivity)
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('pointermove', notePointerActivity)
+    window.removeEventListener('scroll', noteScrollActivity, { capture: true })
+  }
   clearScheduledAppend()
 })
 
-defineExpose({ headings })
+defineExpose({ headings, ensureHeadingVisible })
 </script>
 
 <template>
   <div class="chunked-markdown-renderer">
-    <div ref="containerRef" class="markdown-wrapper markdown-body" v-html="visibleHtml"></div>
+    <div ref="containerRef" class="markdown-wrapper markdown-body">
+      <div
+        v-for="(html, index) in visibleHtmlChunks"
+        :key="index"
+        class="markdown-chunk"
+        v-html="html"
+      ></div>
+    </div>
 
     <div v-if="hasRemainingChunks" class="chunk-progress" aria-live="polite">
       <span class="chunk-progress-bar"></span>
@@ -299,10 +369,8 @@ defineExpose({ headings })
 .chunk-progress-bar {
   width: min(160px, 42%);
   height: 2px;
-  background: linear-gradient(90deg, transparent, var(--accent), transparent);
-  background-size: 180% 100%;
-  animation: chunk-progress-scan 1.1s linear infinite;
-  opacity: 0.75;
+  background: var(--accent);
+  opacity: 0.55;
 }
 
 .chunk-progress-text {
@@ -313,8 +381,8 @@ defineExpose({ headings })
   color: var(--text-muted);
 }
 
-@keyframes chunk-progress-scan {
-  0% { background-position: 180% 0; }
-  100% { background-position: -20% 0; }
+.markdown-chunk {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 520px;
 }
 </style>

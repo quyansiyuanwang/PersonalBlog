@@ -10,7 +10,7 @@ import {
 } from "vue";
 import { RouterLink, RouterView, useRoute } from "vue-router";
 import { useSubtitle } from "../lib/subtitle";
-import { useTocState } from "../lib/tocKey";
+import { requestHeadingVisible, useTocState } from "../lib/tocKey";
 import { useTheme } from "../lib/theme";
 import { useAudioSignal } from "../lib/audioSignal";
 import { getAllPosts } from "../lib/posts";
@@ -423,10 +423,26 @@ function syncLeftPanelGeometry() {
 }
 
 function scrollToHeading(id: string) {
+  requestHeadingVisible(id);
+
+  retryScrollToMountedHeading(id);
+}
+
+function retryScrollToMountedHeading(id: string, attempts = 0) {
+  if (scrollToMountedHeading(id) || attempts >= 12) {
+    return;
+  }
+
+  window.setTimeout(() => {
+    retryScrollToMountedHeading(id, attempts + 1);
+  }, 48);
+}
+
+function scrollToMountedHeading(id: string) {
   const el = document.getElementById(id);
 
   if (!el) {
-    return;
+    return false;
   }
 
   if (shouldUseVerticalShellLayout()) {
@@ -438,7 +454,7 @@ function scrollToHeading(id: string) {
       behavior: "smooth",
     });
 
-    return;
+    return true;
   }
 
   const scroller = contentScrollRef.value;
@@ -451,7 +467,11 @@ function scrollToHeading(id: string) {
       top: scroller.scrollTop + targetTop - scrollerTop - 12,
       behavior: "smooth",
     });
+
+    return true;
   }
+
+  return false;
 }
 
 function tiltSignalCube(event: PointerEvent) {

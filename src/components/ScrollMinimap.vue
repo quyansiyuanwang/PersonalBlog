@@ -15,7 +15,7 @@ const dragging = ref(false);
 
 let animationFrame = 0;
 let resizeObserver: ResizeObserver | null = null;
-let mutationObserver: MutationObserver | null = null;
+let metricsTimer: number | null = null;
 
 const canScroll = computed(() => scrollHeight.value > clientHeight.value + 1);
 const progress = computed(() => {
@@ -27,7 +27,7 @@ const viewportRatio = computed(() =>
 );
 const thumbStyle = computed(() => ({
   height: `${viewportRatio.value * 100}%`,
-  transform: `translate3d(0, ${progress.value * (1 - viewportRatio.value) * 100}%, 0)`,
+  top: `${progress.value * (1 - viewportRatio.value) * 100}%`,
 }));
 
 function readScrollState() {
@@ -94,36 +94,37 @@ function stopDragging(event: PointerEvent) {
 
 function bindTarget(target: HTMLElement | null) {
   resizeObserver?.disconnect();
-  mutationObserver?.disconnect();
   resizeObserver = null;
-  mutationObserver = null;
+
+  if (metricsTimer !== null) {
+    window.clearInterval(metricsTimer);
+    metricsTimer = null;
+  }
 
   if (!target || typeof window === "undefined") return;
 
   target.addEventListener("scroll", scheduleReadScrollState, { passive: true });
   resizeObserver = new ResizeObserver(scheduleReadScrollState);
   resizeObserver.observe(target);
-  Array.from(target.children).forEach((child) => resizeObserver?.observe(child));
-  mutationObserver = new MutationObserver(() => {
-    Array.from(target.children).forEach((child) => resizeObserver?.observe(child));
-    scheduleReadScrollState();
-  });
-  mutationObserver.observe(target, { childList: true, subtree: true });
+  metricsTimer = window.setInterval(scheduleReadScrollState, 700);
   void nextTick(readScrollState);
 }
 
 function unbindTarget(target: HTMLElement | null) {
   target?.removeEventListener("scroll", scheduleReadScrollState);
   resizeObserver?.disconnect();
-  mutationObserver?.disconnect();
   resizeObserver = null;
-  mutationObserver = null;
+
+  if (metricsTimer !== null) {
+    window.clearInterval(metricsTimer);
+    metricsTimer = null;
+  }
 }
 
 watch(
   () => props.scrollTarget,
   (nextTarget, previousTarget) => {
-    unbindTarget(previousTarget);
+    unbindTarget(previousTarget ?? null);
     bindTarget(nextTarget);
   },
   { immediate: true },
@@ -213,6 +214,8 @@ onBeforeUnmount(() => {
       transparent 2px 7px
     );
   cursor: grab;
+  touch-action: none;
+  user-select: none;
 }
 
 .scroll-minimap.dragging .scroll-minimap-track {
@@ -234,12 +237,10 @@ onBeforeUnmount(() => {
 }
 
 .scroll-minimap-thumb {
-  top: 0;
   min-height: 34px;
   border-left: 2px solid var(--accent);
   background: color-mix(in srgb, var(--accent) 16%, transparent);
   box-shadow: 0 0 14px color-mix(in srgb, var(--accent) 22%, transparent);
-  will-change: transform;
 }
 
 @media (max-width: 900px) {

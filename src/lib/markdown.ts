@@ -54,6 +54,32 @@ const markdown: MarkdownIt = new MarkdownIt({
   },
 })
 
+export interface MarkdownRenderOptions {
+  assetBase?: string
+}
+
+function normalizeAssetBase(assetBase?: string) {
+  if (!assetBase) {
+    return ''
+  }
+
+  return assetBase.replace(/\/+$/, '')
+}
+
+function isExternalUrl(value: string) {
+  return /^(?:[a-z][a-z\d+.-]*:|\/\/|#|\/)/i.test(value)
+}
+
+function resolveMarkdownAssetUrl(value: string, assetBase?: string) {
+  const base = normalizeAssetBase(assetBase)
+
+  if (!base || isExternalUrl(value)) {
+    return value
+  }
+
+  return `${base}/${value.replace(/^\.\//, '').replace(/^\/+/g, '')}`
+}
+
 // Custom fence for mermaid — outputs raw content inside a div
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mdAny = markdown as any
@@ -88,6 +114,26 @@ markdown.use(linkAttributes, {
   },
 })
 
-export function renderMarkdown(source: string) {
-  return markdown.render(source)
+const defaultImageRenderer = mdAny.renderer.rules.image
+mdAny.renderer.rules.image = (tokens: any[], idx: number, options: any, env: MarkdownRenderOptions = {}, self: any) => {
+  const token = tokens[idx]
+  const sourceIndex = token.attrIndex('src')
+
+  if (sourceIndex >= 0 && token.attrs) {
+    const source = token.attrs[sourceIndex][1]
+    token.attrs[sourceIndex][1] = resolveMarkdownAssetUrl(source, env.assetBase)
+    token.attrJoin('class', 'markdown-image')
+    token.attrSet('loading', 'lazy')
+    token.attrSet('decoding', 'async')
+  }
+
+  if (defaultImageRenderer) {
+    return defaultImageRenderer(tokens, idx, options, env, self)
+  }
+
+  return self.renderToken(tokens, idx, options)
+}
+
+export function renderMarkdown(source: string, options: MarkdownRenderOptions = {}) {
+  return mdAny.render(source, options)
 }

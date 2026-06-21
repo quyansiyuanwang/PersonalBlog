@@ -8,7 +8,7 @@ import type { PostDetail } from '../types/post'
 import { getNextPost, getPostBySlug, getRelatedPosts, loadPostBySlug, prefetchPostBySlug } from '../lib/posts'
 import { useScrollReveal } from '../lib/scrollReveal'
 import { useScrollSpy } from '../lib/scrollSpy'
-import { clearTocData, setTocData } from '../lib/tocKey'
+import { clearTocData, setTocData, useTocState } from '../lib/tocKey'
 
 const route = useRoute()
 
@@ -21,6 +21,7 @@ const nextPost = computed(() => (postMeta.value ? getNextPost(postMeta.value.slu
 const { observe } = useScrollReveal()
 
 const rendererRef = ref<InstanceType<typeof ChunkedMarkdownRenderer> | null>(null)
+const { pendingHeadingRequest } = useTocState()
 
 // Directly read the exposed headings ref from the renderer, reactive all the way down
 const headings = computed(() => {
@@ -70,6 +71,13 @@ watch(() => route.params.slug, () => {
   hydratePost()
 }, { immediate: true })
 
+watch(pendingHeadingRequest, (request) => {
+  const id = request?.split(':')[0]
+  if (id) {
+    rendererRef.value?.ensureHeadingVisible(id)
+  }
+})
+
 onUnmounted(() => {
   clearTocData()
 })
@@ -93,7 +101,7 @@ onUnmounted(() => {
 
     <div v-if="postLoading" class="post-loading reveal reveal-stagger-1">Loading article...</div>
     <div v-else-if="post" class="reveal reveal-stagger-1">
-      <ChunkedMarkdownRenderer ref="rendererRef" :source="post.content" />
+      <ChunkedMarkdownRenderer ref="rendererRef" :source="post.content" :asset-base="`/posts/${post.slug}`" />
     </div>
 
     <PostList
