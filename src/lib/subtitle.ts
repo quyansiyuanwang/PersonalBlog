@@ -1,20 +1,53 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { siteConfig } from './site'
 
-export function useSubtitle(intervalMs = 5000) {
-  const subtitle = ref(siteConfig.subtitles[0])
+export function useSubtitle(intervalMs = 1800) {
+  const subtitle = ref('')
   let index = 0
-  let timer: ReturnType<typeof setInterval> | null = null
+  let charIndex = 0
+  let deleting = false
+  let timer: ReturnType<typeof setTimeout> | null = null
+
+  function queueNextTick(delay: number) {
+    timer = setTimeout(tick, delay)
+  }
+
+  function tick() {
+    const source = siteConfig.subtitles[index] ?? ''
+
+    if (!deleting) {
+      charIndex += 1
+      subtitle.value = source.slice(0, charIndex)
+
+      if (charIndex >= source.length) {
+        deleting = true
+        queueNextTick(intervalMs)
+        return
+      }
+
+      queueNextTick(72)
+      return
+    }
+
+    charIndex -= 1
+    subtitle.value = source.slice(0, Math.max(charIndex, 0))
+
+    if (charIndex <= 0) {
+      deleting = false
+      index = (index + 1) % siteConfig.subtitles.length
+      queueNextTick(360)
+      return
+    }
+
+    queueNextTick(34)
+  }
 
   onMounted(() => {
-    timer = setInterval(() => {
-      index = (index + 1) % siteConfig.subtitles.length
-      subtitle.value = siteConfig.subtitles[index]
-    }, intervalMs)
+    queueNextTick(260)
   })
 
   onUnmounted(() => {
-    if (timer) clearInterval(timer)
+    if (timer) clearTimeout(timer)
   })
 
   return subtitle

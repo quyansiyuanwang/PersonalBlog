@@ -27,9 +27,17 @@ const isPostRoute = computed(() => route.path.startsWith("/post"));
 const isLeftPanelHalfCollapsed = ref(false);
 const subtitle = useSubtitle();
 const playerExpanded = ref(true);
+const cubeTiltX = ref(-12);
+const cubeTiltY = ref(18);
+const cubePosition = ref({ x: 28, y: 320 });
+const isCubeDragging = ref(false);
 const shellMainRef = ref<HTMLElement | null>(null);
 const contentScrollRef = ref<HTMLElement | null>(null);
 let leftPanelAnimationFrame: number | null = null;
+let cubePhysicsFrame: number | null = null;
+let cubeDragOffset = { x: 0, y: 0 };
+let cubeVelocity = { x: 0, y: 0 };
+let lastCubePointer = { x: 0, y: 0, time: 0 };
 
 // ── TOC data from active post view ──
 const { headings: tocHeadings, activeId: tocActiveId, showToc } = useTocState();
@@ -161,6 +169,165 @@ function scrollToHeading(id: string) {
   }
 }
 
+function tiltSignalCube(event: PointerEvent) {
+  const target = event.currentTarget as HTMLElement;
+  const rect = target.getBoundingClientRect();
+  const offsetX = (event.clientX - rect.left) / rect.width - 0.5;
+  const offsetY = (event.clientY - rect.top) / rect.height - 0.5;
+
+  cubeTiltX.value = Math.round(-12 - offsetY * 24);
+  cubeTiltY.value = Math.round(18 + offsetX * 34);
+}
+
+function resetSignalCube() {
+  cubeTiltX.value = -12;
+  cubeTiltY.value = 18;
+}
+
+function stopCubePhysics() {
+  if (cubePhysicsFrame) {
+    cancelAnimationFrame(cubePhysicsFrame);
+    cubePhysicsFrame = null;
+  }
+}
+
+function getCubeBounds(target: HTMLElement) {
+  const parent = target.offsetParent as HTMLElement | null;
+
+  if (!parent) {
+    return null;
+  }
+
+  const parentRect = parent.getBoundingClientRect();
+
+  return {
+    parentRect,
+    maxX: Math.max(parentRect.width - target.offsetWidth - 10, 0),
+    maxY: Math.max(parentRect.height - target.offsetHeight - 10, 0),
+  };
+}
+
+function runCubePhysics(target: HTMLElement) {
+  stopCubePhysics();
+
+  let lastTime = performance.now();
+  const gravity = 1800;
+  const bounce = 0.62;
+  const friction = 0.985;
+
+  const tick = (now: number) => {
+    const bounds = getCubeBounds(target);
+
+    if (!bounds || isCubeDragging.value) {
+      cubePhysicsFrame = null;
+      return;
+    }
+
+    const deltaSeconds = Math.min((now - lastTime) / 1000, 0.032);
+    lastTime = now;
+    cubeVelocity.y += gravity * deltaSeconds;
+    cubeVelocity.x *= friction;
+
+    let nextX = cubePosition.value.x + cubeVelocity.x * deltaSeconds;
+    let nextY = cubePosition.value.y + cubeVelocity.y * deltaSeconds;
+
+    if (nextX <= 10) {
+      nextX = 10;
+      cubeVelocity.x = Math.abs(cubeVelocity.x) * bounce;
+    } else if (nextX >= bounds.maxX) {
+      nextX = bounds.maxX;
+      cubeVelocity.x = -Math.abs(cubeVelocity.x) * bounce;
+    }
+
+    if (nextY <= 10) {
+      nextY = 10;
+      cubeVelocity.y = Math.abs(cubeVelocity.y) * bounce;
+    } else if (nextY >= bounds.maxY) {
+      nextY = bounds.maxY;
+      cubeVelocity.y = -Math.abs(cubeVelocity.y) * bounce;
+      cubeVelocity.x *= 0.82;
+    }
+
+    cubePosition.value = { x: nextX, y: nextY };
+    cubeTiltX.value = Math.round(-12 - cubeVelocity.y * 0.012);
+    cubeTiltY.value = Math.round(18 + cubeVelocity.x * 0.012);
+
+    if (
+      Math.abs(cubeVelocity.x) < 8 &&
+      Math.abs(cubeVelocity.y) < 18 &&
+      nextY >= bounds.maxY - 1
+    ) {
+      cubeVelocity = { x: 0, y: 0 };
+      resetSignalCube();
+      cubePhysicsFrame = null;
+      return;
+    }
+
+    cubePhysicsFrame = requestAnimationFrame(tick);
+  };
+
+  cubePhysicsFrame = requestAnimationFrame(tick);
+}
+
+function startCubeDrag(event: PointerEvent) {
+  const target = event.currentTarget as HTMLElement;
+  const bounds = getCubeBounds(target);
+
+  if (!bounds) {
+    return;
+  }
+
+  stopCubePhysics();
+  cubeDragOffset = {
+    x: event.clientX - bounds.parentRect.left - cubePosition.value.x,
+    y: event.clientY - bounds.parentRect.top - cubePosition.value.y,
+  };
+  cubeVelocity = { x: 0, y: 0 };
+  lastCubePointer = { x: event.clientX, y: event.clientY, time: performance.now() };
+
+  isCubeDragging.value = true;
+  target.setPointerCapture(event.pointerId);
+  tiltSignalCube(event);
+}
+
+function moveCubeDrag(event: PointerEvent) {
+  tiltSignalCube(event);
+
+  if (!isCubeDragging.value) {
+    return;
+  }
+
+  const target = event.currentTarget as HTMLElement;
+  const bounds = getCubeBounds(target);
+
+  if (!bounds) {
+    return;
+  }
+
+  const now = performance.now();
+  const deltaSeconds = Math.max((now - lastCubePointer.time) / 1000, 0.001);
+  cubeVelocity = {
+    x: (event.clientX - lastCubePointer.x) / deltaSeconds,
+    y: (event.clientY - lastCubePointer.y) / deltaSeconds,
+  };
+  lastCubePointer = { x: event.clientX, y: event.clientY, time: now };
+
+  const nextX = event.clientX - bounds.parentRect.left - cubeDragOffset.x;
+  const nextY = event.clientY - bounds.parentRect.top - cubeDragOffset.y;
+
+  cubePosition.value = {
+    x: Math.min(Math.max(nextX, 10), bounds.maxX),
+    y: Math.min(Math.max(nextY, 10), bounds.maxY),
+  };
+}
+
+function stopCubeDrag(event: PointerEvent) {
+  const target = event.currentTarget as HTMLElement;
+  isCubeDragging.value = false;
+  target.releasePointerCapture(event.pointerId);
+  runCubePhysics(target);
+}
+
 watch(
   () => route.fullPath,
   () => {
@@ -284,6 +451,8 @@ onUnmounted(() => {
   if (leftPanelAnimationFrame) {
     cancelAnimationFrame(leftPanelAnimationFrame);
   }
+
+  stopCubePhysics();
 
   if (onlineTimer) {
     clearInterval(onlineTimer);
@@ -420,6 +589,35 @@ onUnmounted(() => {
                 </span>
               </div> -->
             </div>
+            <button
+              class="signal-cube-dragger"
+              :class="{ dragging: isCubeDragging }"
+              type="button"
+              :style="{
+                '--cube-x': cubePosition.x + 'px',
+                '--cube-y': cubePosition.y + 'px',
+                '--cube-tilt-x': cubeTiltX + 'deg',
+                '--cube-tilt-y': cubeTiltY + 'deg',
+              }"
+              aria-label="可拖动的信号核心方块"
+              @pointerdown="startCubeDrag"
+              @pointermove="moveCubeDrag"
+              @pointerup="stopCubeDrag"
+              @pointercancel="stopCubeDrag"
+              @pointerleave="resetSignalCube"
+            >
+              <span class="signal-cube-scene" aria-hidden="true">
+                <span class="signal-cube">
+                  <span class="cube-face cube-front"></span>
+                  <span class="cube-face cube-back"></span>
+                  <span class="cube-face cube-right"></span>
+                  <span class="cube-face cube-left"></span>
+                  <span class="cube-face cube-top"></span>
+                  <span class="cube-face cube-bottom"></span>
+                  <span class="cube-core"></span>
+                </span>
+              </span>
+            </button>
           </div>
         </aside>
 
@@ -873,6 +1071,127 @@ onUnmounted(() => {
     max-height 0.46s ease,
     padding 0.46s ease,
     border-width 0.46s ease;
+}
+
+.signal-cube-dragger {
+  position: absolute;
+  left: var(--cube-x);
+  top: var(--cube-y);
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: 76px;
+  height: 76px;
+  border: 0;
+  background: transparent;
+  color: var(--fui-cyan);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  filter: drop-shadow(0 0 14px rgba(64, 224, 208, 0.24));
+  will-change: left, top;
+}
+
+.signal-cube-dragger.dragging {
+  cursor: grabbing;
+}
+
+.signal-cube-scene {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 76px;
+  height: 76px;
+  perspective: 520px;
+  pointer-events: none;
+}
+
+.signal-cube-scene::before {
+  content: "";
+  position: absolute;
+  inset: auto 14px 3px;
+  height: 8px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(64, 224, 208, 0.2), transparent 70%);
+  filter: blur(2px);
+}
+
+.signal-cube {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  transform-style: preserve-3d;
+  transform: rotateX(var(--cube-tilt-x)) rotateY(var(--cube-tilt-y));
+  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.signal-cube-dragger.dragging .signal-cube {
+  transition: none;
+}
+
+.cube-face {
+  position: absolute;
+  inset: 0;
+  border: 1px solid color-mix(in srgb, var(--fui-cyan) 92%, transparent);
+  background: transparent;
+  box-shadow:
+    0 0 8px rgba(64, 224, 208, 0.2),
+    inset 0 0 10px rgba(184, 255, 202, 0.035);
+  backface-visibility: hidden;
+}
+
+.cube-front {
+  transform: translateZ(19px);
+}
+
+.cube-back {
+  transform: rotateY(180deg) translateZ(19px);
+}
+
+.cube-right {
+  transform: rotateY(90deg) translateZ(19px);
+}
+
+.cube-left {
+  transform: rotateY(-90deg) translateZ(19px);
+}
+
+.cube-top {
+  transform: rotateX(90deg) translateZ(19px);
+}
+
+.cube-bottom {
+  transform: rotateX(-90deg) translateZ(19px);
+}
+
+.cube-core {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #ffffff 0 12%, var(--fui-cyan) 32%, transparent 72%);
+  box-shadow:
+    0 0 10px rgba(255, 255, 255, 0.5),
+    0 0 24px rgba(64, 224, 208, 0.82),
+    0 0 52px rgba(184, 255, 202, 0.28);
+  transform: translate3d(-50%, -50%, 0);
+  animation: cube-core-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes cube-core-pulse {
+  0%,
+  100% {
+    transform: translate3d(-50%, -50%, 0) scale(0.86);
+    opacity: 0.76;
+  }
+
+  50% {
+    transform: translate3d(-50%, -50%, 0) scale(1.18);
+    opacity: 1;
+  }
 }
 
 .side-meter {

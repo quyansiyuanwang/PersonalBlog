@@ -10,7 +10,6 @@ export const siteConfig = {
     'Talk is cheap. Show me the code.',
     '一杯茶，一行代码，一个下午。',
     'Make it work, make it right, make it fast.',
-    '键盘敲烂，月薪过万（不是',
     'First, solve the problem.',
     '没有银弹，但有热更新。',
     '// TODO: 写一条有意思的副标题',
