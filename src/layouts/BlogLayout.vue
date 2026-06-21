@@ -24,6 +24,10 @@ const FuiMusicWidget = defineAsyncComponent(
   () => import("../components/FuiMusicWidget.vue"),
 );
 
+const FuiCatDotMatrix = defineAsyncComponent(
+  () => import("../components/FuiCatDotMatrix.vue"),
+);
+
 const route = useRoute();
 const leftPanelCollapsed = ref(false);
 const isPostRoute = computed(() => route.path.startsWith("/post"));
@@ -866,6 +870,9 @@ onUnmounted(() => {
           :class="{ collapsed: leftPanelCollapsed, 'post-panel': isPostRoute }"
         >
           <div ref="leftPanelShellRef" class="left-panel-shell">
+            <div class="left-panel-cat-bg" aria-hidden="true">
+              <FuiCatDotMatrix class="left-panel-cat-bg-inner" />
+            </div>
             <button
               v-if="!leftPanelCollapsed && !isLeftPanelHalfCollapsed"
               class="cube-drop-lever"
@@ -1297,7 +1304,7 @@ onUnmounted(() => {
   position: absolute;
   top: 12px;
   left: 14px;
-  z-index: 5;
+  z-index: 40;
   display: inline-flex;
   flex-direction: column;
   align-items: center;
@@ -1432,6 +1439,7 @@ onUnmounted(() => {
 
 .left-panel-shell {
   position: relative;
+  isolation: isolate;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -1462,6 +1470,22 @@ onUnmounted(() => {
 .left-panel.post-panel .left-panel-shell {
   min-height: 0;
   padding-block: 18px;
+}
+
+.left-panel-cat-bg {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.left-panel-cat-bg-inner {
+  position: absolute;
+  inset: 0;
 }
 
 .left-panel-hero {
@@ -1534,6 +1558,8 @@ onUnmounted(() => {
 }
 
 .left-panel-toggle {
+  position: relative;
+  z-index: 40;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1586,6 +1612,8 @@ onUnmounted(() => {
 
 /* ── TOC in left panel ── */
 .left-panel-toc-wrap {
+  position: relative;
+  z-index: 10;
   flex: 1;
   min-height: 0;
   min-width: 0;
@@ -1748,6 +1776,8 @@ onUnmounted(() => {
 }
 
 .left-panel-footer {
+  position: relative;
+  z-index: 10;
   display: grid;
   gap: 12px;
   transition:
@@ -2025,7 +2055,7 @@ onUnmounted(() => {
   position: absolute;
   left: var(--cube-x);
   top: var(--cube-y);
-  z-index: 3;
+  z-index: 90;
   display: grid;
   place-items: center;
   width: 76px;
@@ -2048,7 +2078,7 @@ onUnmounted(() => {
   position: absolute;
   left: var(--fragment-origin-x);
   top: var(--fragment-origin-y);
-  z-index: 4;
+  z-index: 89;
   width: var(--fragment-size);
   height: var(--fragment-size);
   border: 1px solid color-mix(in srgb, var(--fui-cyan) 90%, transparent);
@@ -2332,6 +2362,7 @@ onUnmounted(() => {
 
 .collapsed-vinyl-button {
   position: relative;
+  z-index: 40;
   align-self: center;
   width: 72px;
   height: 72px;
@@ -2442,7 +2473,7 @@ onUnmounted(() => {
   right: 4px;
   width: 54px;
   height: 100%;
-  z-index: 2;
+  z-index: 40;
   overflow: visible;
   pointer-events: auto;
 }
