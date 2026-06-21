@@ -1,5 +1,5 @@
 import { prefetchRouteComponents } from '../router'
-import { musicTracks } from './music'
+import { musicTracks } from '../generated/music'
 
 const MUSIC_PRELOAD_COUNT = 2
 

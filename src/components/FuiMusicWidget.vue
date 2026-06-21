@@ -7,7 +7,12 @@ import {
   ref,
   watch,
 } from "vue";
-import { musicTracks } from "../lib/music";
+import {
+  resetAudioSignalBars,
+  setAudioSignalMode,
+  updateAudioSignalBars,
+} from "../lib/audioSignal";
+import { musicTracks } from "../generated/music";
 
 const tracks = musicTracks;
 
@@ -33,10 +38,18 @@ const fetchPending = reactive<boolean[]>(new Array(TRACK_COUNT).fill(false));
 
 // which track is currently "loaded" into <audio>
 let loadedTrackIdx = -1;
+let shouldPlayAfterLoad = false;
 
 // rotation loop
 let animationFrameId: number | null = null;
 let lastFrameTime = 0;
+
+// audio analyser loop
+let audioContext: AudioContext | null = null;
+let analyserNode: AnalyserNode | null = null;
+let mediaSourceNode: MediaElementAudioSourceNode | null = null;
+let analyserFrameId: number | null = null;
+let frequencyData: Uint8Array<ArrayBuffer> | null = null;
 
 // ── derived ──
 const currentTrack = computed(() => tracks[currentIndex.value]);
@@ -90,6 +103,86 @@ function startRotationLoop() {
   animationFrameId = requestAnimationFrame(stepRotation);
 }
 
+function stopAnalyserLoop() {
+  if (analyserFrameId !== null) {
+    cancelAnimationFrame(analyserFrameId);
+    analyserFrameId = null;
+  }
+}
+
+function setupAudioAnalyser() {
+  const audio = audioRef.value;
+  if (!audio) return null;
+
+  if (!audioContext) {
+    audioContext = new AudioContext();
+  }
+
+  if (!mediaSourceNode) {
+    mediaSourceNode = audioContext.createMediaElementSource(audio);
+  }
+
+  if (!analyserNode) {
+    analyserNode = audioContext.createAnalyser();
+    analyserNode.fftSize = 64;
+    analyserNode.smoothingTimeConstant = 0.72;
+    mediaSourceNode.connect(analyserNode);
+    analyserNode.connect(audioContext.destination);
+    frequencyData = new Uint8Array(analyserNode.frequencyBinCount);
+  }
+
+  return analyserNode;
+}
+
+function readFrequencyBucket(start: number, size: number) {
+  if (!frequencyData) return 0;
+
+  let sum = 0;
+  let count = 0;
+  const end = Math.min(start + size, frequencyData.length);
+  for (let index = start; index < end; index += 1) {
+    sum += frequencyData[index];
+    count += 1;
+  }
+
+  return count ? sum / count / 255 : 0;
+}
+
+function readAudioSignal() {
+  if (!analyserNode || !frequencyData || !isPlaying.value) {
+    stopAnalyserLoop();
+    return;
+  }
+
+  analyserNode.getByteFrequencyData(frequencyData);
+  const bucketSize = Math.max(1, Math.floor(frequencyData.length / 14));
+  const bars = Array.from({ length: 14 }, (_, index) => {
+    const start = index * bucketSize;
+    return readFrequencyBucket(start, bucketSize);
+  });
+  const level =
+    frequencyData.reduce((total, value) => total + value, 0) /
+    frequencyData.length /
+    255;
+
+  updateAudioSignalBars(bars, level);
+  analyserFrameId = requestAnimationFrame(readAudioSignal);
+}
+
+function startAnalyserLoop() {
+  const analyser = setupAudioAnalyser();
+  if (!analyser || analyserFrameId !== null) return;
+
+  if (audioContext?.state === "suspended") {
+    void audioContext.resume();
+  }
+
+  analyser.getByteFrequencyData(
+    frequencyData ?? new Uint8Array(analyser.frequencyBinCount),
+  );
+  analyserFrameId = requestAnimationFrame(readAudioSignal);
+}
+
 // ── helpers ──
 function formatTime(seconds: number) {
   if (!Number.isFinite(seconds) || seconds <= 0) return "00:00";
@@ -107,9 +200,17 @@ function loadTrack(idx: number) {
   const audio = audioRef.value;
   if (!audio) return;
 
+  const shouldResume = shouldPlayAfterLoad || isPlaying.value;
+  shouldPlayAfterLoad = false;
+
   // already loaded
   if (loadedTrackIdx === idx && blobCache[idx]) {
     // just seek to 0 if needed
+    if (shouldResume) {
+      audio.play().catch(() => {
+        isPlaying.value = false;
+      });
+    }
     return;
   }
 
@@ -120,6 +221,11 @@ function loadTrack(idx: number) {
     loadedTrackIdx = idx;
     currentTime.value = 0;
     duration.value = audio.duration || duration.value;
+    if (shouldResume) {
+      audio.play().catch(() => {
+        isPlaying.value = false;
+      });
+    }
     return;
   }
 
@@ -127,6 +233,7 @@ function loadTrack(idx: number) {
   if (fetchPending[idx]) return;
 
   // need to fetch
+  setAudioSignalMode("LOAD");
   fetchPending[idx] = true;
   const url = getTrackUrl(idx);
 
@@ -152,14 +259,17 @@ function loadTrack(idx: number) {
       currentTime.value = 0;
       duration.value = a.duration || duration.value;
 
-      if (isPlaying.value) {
+      if (shouldResume || isPlaying.value) {
         a.play().catch(() => {
           isPlaying.value = false;
         });
+      } else {
+        setAudioSignalMode("PAUSE");
       }
     })
     .catch(() => {
       fetchPending[idx] = false;
+      setAudioSignalMode("ERROR");
       if (currentIndex.value === idx) {
         isPlaying.value = false;
       }
@@ -197,11 +307,15 @@ function togglePlayback() {
 }
 
 function playNext() {
+  shouldPlayAfterLoad =
+    isPlaying.value ||
+    (duration.value > 0 && currentTime.value >= duration.value - 0.25);
   currentIndex.value = (currentIndex.value + 1) % TRACK_COUNT;
 }
 
 function selectTrack(index: number) {
   if (index === currentIndex.value) return;
+  shouldPlayAfterLoad = isPlaying.value;
   currentIndex.value = index;
 }
 
@@ -225,11 +339,14 @@ function handleTimeUpdate() {
 }
 function handlePlay() {
   isPlaying.value = true;
+  setAudioSignalMode("PLAY");
 }
 function handlePause() {
   isPlaying.value = false;
+  setAudioSignalMode("PAUSE");
 }
 function handleEnded() {
+  isPlaying.value = true;
   playNext();
 }
 function handleLoadedMetadata() {
@@ -238,13 +355,25 @@ function handleLoadedMetadata() {
   duration.value = a.duration;
 }
 
+function handleError() {
+  isPlaying.value = false;
+  setAudioSignalMode("ERROR");
+}
+
 // ── watchers & lifecycle ──
 watch(currentIndex, (idx) => {
   loadTrack(idx);
 });
 
 watch(isPlaying, (p) => {
-  p ? startRotationLoop() : stopRotationLoop();
+  if (p) {
+    startRotationLoop();
+    startAnalyserLoop();
+    return;
+  }
+
+  stopRotationLoop();
+  stopAnalyserLoop();
 });
 
 onMounted(() => {
@@ -253,7 +382,11 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   stopRotationLoop();
+  stopAnalyserLoop();
+  resetAudioSignalBars();
+  setAudioSignalMode("IDLE");
   audioRef.value?.pause();
+  void audioContext?.close();
 });
 </script>
 
@@ -263,7 +396,7 @@ onBeforeUnmount(() => {
       ref="audioRef"
       preload="auto"
       @ended="handleEnded"
-      @error="isPlaying = false"
+      @error="handleError"
       @loadedmetadata="handleLoadedMetadata"
       @pause="handlePause"
       @play="handlePlay"

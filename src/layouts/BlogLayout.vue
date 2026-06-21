@@ -12,6 +12,7 @@ import { useSubtitle } from "../lib/subtitle";
 import { useTocState } from "../lib/tocKey";
 import { warmupBackgroundResources } from "../lib/startup";
 import { useTheme } from "../lib/theme";
+import { useAudioSignal } from "../lib/audioSignal";
 import { getAllPosts } from "../lib/posts";
 import router from "../router/index.ts";
 
@@ -29,6 +30,7 @@ const isPostRoute = computed(() => route.path.startsWith("/post"));
 const isLeftPanelHalfCollapsed = ref(false);
 const subtitle = useSubtitle();
 const { theme, toggleTheme } = useTheme();
+const { bars: waveBars, stats: signalStats } = useAudioSignal();
 const playerExpanded = ref(true);
 const cubeTiltX = ref(-12);
 const cubeTiltY = ref(18);
@@ -59,12 +61,6 @@ const signalLogs = [
   "AMBIENT BUS IDLE",
 ];
 const brailleLine = "⠿⡇⢿⣷⠶⣀⡿⠋⠙⢿⡄⠂⠆⡐⠠⢀⡀⠙⢷⣦⠿⠇";
-const waveBars = [34, 58, 42, 76, 48, 64, 36, 82, 54, 68, 40, 72, 46, 60];
-const signalStats = [
-  { label: "NODE", value: "07" },
-  { label: "PING", value: "18MS" },
-  { label: "MODE", value: "IDLE" },
-];
 
 interface CubeFragment {
   id: number;
@@ -1065,21 +1061,24 @@ onUnmounted(() => {
                   @focus="routeSearchFocused = true"
                   @blur="routeSearchFocused = false"
                 />
-                <div v-if="showRouteSearchResults" class="route-search-results">
-                  <button
-                    v-for="item in routeSearchResults"
-                    :key="item.to"
-                    type="button"
-                    class="route-search-result"
-                    @mousedown.prevent="goToRouteSearchItem(item)"
-                  >
-                    <strong>{{ item.title }}</strong>
-                    <small>{{ item.subtitle }}</small>
-                  </button>
-                  <p v-if="routeSearchResults.length === 0" class="route-search-empty">
-                    NO SIGNAL
-                  </p>
-                </div>
+                <Transition name="route-search-pop">
+                  <div v-if="showRouteSearchResults" class="route-search-results">
+                    <button
+                      v-for="(item, index) in routeSearchResults"
+                      :key="item.to"
+                      type="button"
+                      class="route-search-result"
+                      :style="{ '--result-index': index }"
+                      @mousedown.prevent="goToRouteSearchItem(item)"
+                    >
+                      <strong>{{ item.title }}</strong>
+                      <small>{{ item.subtitle }}</small>
+                    </button>
+                    <p v-if="routeSearchResults.length === 0" class="route-search-empty">
+                      NO SIGNAL
+                    </p>
+                  </div>
+                </Transition>
               </form>
             </div>
 
@@ -1195,6 +1194,31 @@ onUnmounted(() => {
     linear-gradient(135deg, rgba(184, 255, 202, 0.07), transparent 46%),
     color-mix(in srgb, var(--surface) 94%, var(--black));
   box-shadow: 0 18px 36px rgba(0, 0, 0, 0.34);
+  overflow: hidden;
+  transform-origin: top right;
+  will-change: opacity, transform, clip-path;
+}
+
+.route-search-pop-enter-active,
+.route-search-pop-leave-active {
+  transition:
+    opacity 0.24s ease,
+    transform 0.28s cubic-bezier(0.19, 1, 0.22, 1),
+    clip-path 0.28s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+.route-search-pop-enter-from,
+.route-search-pop-leave-to {
+  opacity: 0;
+  transform: translateY(-8px) scale(0.96);
+  clip-path: inset(0 0 100% 0);
+}
+
+.route-search-pop-enter-to,
+.route-search-pop-leave-from {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  clip-path: inset(0 0 0 0);
 }
 
 .route-search-result {
@@ -1208,6 +1232,8 @@ onUnmounted(() => {
   font: inherit;
   text-align: left;
   cursor: pointer;
+  animation: route-search-result-in 0.26s ease both;
+  animation-delay: calc(var(--result-index, 0) * 36ms + 40ms);
 }
 
 .route-search-result:hover {
@@ -1230,6 +1256,18 @@ onUnmounted(() => {
 .route-search-empty {
   margin: 0;
   padding: 8px 10px;
+  animation: route-search-result-in 0.26s ease both 40ms;
+}
+
+@keyframes route-search-result-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .cube-drop-lever {

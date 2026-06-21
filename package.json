@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "predev": "node scripts/generate-content-manifest.mjs && node scripts/generate-music-manifest.mjs",
-    "dev": "vite",
+    "dev": "nodemon --watch src --watch content --ext ts,md --ignore src/generated --delay 500ms --exec \"pnpm run predev && vite\"",
     "prebuild": "node scripts/generate-content-manifest.mjs && node scripts/generate-music-manifest.mjs",
-    "build": "node scripts/generate-content-manifest.mjs && node scripts/generate-music-manifest.mjs && node scripts/generate-sitemap.mjs && vue-tsc -b && vite build",
+    "build": "pnpm run prebuild && node scripts/generate-sitemap.mjs && vue-tsc -b && vite build",
     "postbuild": "node scripts/copy-404.mjs",
     "preview": "vite preview"
   },
@@ -27,6 +27,7 @@
     "@types/node": "^24.12.3",
     "@vitejs/plugin-vue": "^6.0.6",
     "@vue/tsconfig": "^0.9.1",
+    "nodemon": "^3.1.14",
     "typescript": "~6.0.2",
     "vite": "^8.0.12",
     "vite-plugin-vue-devtools": "^8.1.3",
