@@ -483,7 +483,7 @@ onBeforeUnmount(() => {
   transition:
     opacity 0.25s ease,
     transform 0.25s ease;
-  background: #111111;
+  background: var(--surface-strong);
   width: max-content;
   overflow: hidden;
 }

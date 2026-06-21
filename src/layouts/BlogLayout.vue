@@ -1221,9 +1221,9 @@ onUnmounted(() => {
   padding: 8px;
   border: 1px solid color-mix(in srgb, var(--fui-border-color) 86%, var(--line));
   background:
-    linear-gradient(135deg, rgba(184, 255, 202, 0.07), transparent 46%),
-    color-mix(in srgb, var(--surface) 94%, var(--black));
-  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.34);
+    linear-gradient(135deg, color-mix(in srgb, var(--accent-soft) 70%, transparent), transparent 46%),
+    var(--surface-strong);
+  box-shadow: 0 18px 36px color-mix(in srgb, var(--black) 20%, transparent);
   overflow: hidden;
   transform-origin: top right;
   will-change: opacity, transform, clip-path;
@@ -1313,8 +1313,8 @@ onUnmounted(() => {
   border: 1px solid color-mix(in srgb, var(--fui-border-color) 70%, transparent);
   border-radius: 2px;
   background:
-    linear-gradient(180deg, rgba(184, 255, 202, 0.08), transparent),
-    color-mix(in srgb, var(--black) 48%, transparent);
+    linear-gradient(180deg, color-mix(in srgb, var(--accent-soft) 76%, transparent), transparent),
+    var(--panel-overlay);
   color: color-mix(in srgb, var(--fui-cyan) 82%, var(--text-muted));
   font-family: var(--font-hud);
   font-size: 0.5rem;
@@ -1502,7 +1502,7 @@ onUnmounted(() => {
       color-mix(in srgb, var(--accent-soft) 74%, transparent),
       transparent 52%
     ),
-    color-mix(in srgb, var(--dark-gray) 82%, transparent);
+    var(--panel-strong-overlay);
   box-shadow: inset 0 -1px 0 rgba(184, 255, 202, 0.16);
   transition:
     opacity 0.46s ease,
@@ -1568,7 +1568,7 @@ onUnmounted(() => {
   padding: 8px 14px;
   border: 1px solid color-mix(in srgb, var(--fui-border-color) 94%, var(--line));
   border-radius: 2px;
-  background: color-mix(in srgb, var(--dark-gray) 78%, transparent);
+  background: var(--panel-overlay);
   color: var(--text-muted);
   font-family: var(--font-hud);
   font-size: 0.7rem;
@@ -1664,7 +1664,7 @@ onUnmounted(() => {
   border-radius: 2px;
   background:
     linear-gradient(90deg, rgba(184, 255, 202, 0.04), transparent 36%),
-    color-mix(in srgb, var(--black) 34%, transparent);
+    var(--terminal-overlay);
   font-family: var(--font-mono);
   font-size: 0.76rem;
   line-height: 1.6;
@@ -1805,7 +1805,7 @@ onUnmounted(() => {
       transparent 0 7px,
       rgba(184, 255, 202, 0.018) 8px
     ),
-    color-mix(in srgb, var(--black) 32%, transparent);
+    var(--terminal-overlay);
   box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.018),
     inset 0 -18px 42px rgba(64, 224, 208, 0.025);
@@ -2224,7 +2224,7 @@ onUnmounted(() => {
   border: 1px dashed
     color-mix(in srgb, var(--fui-border-color) 82%, transparent);
   border-radius: 2px;
-  background: color-mix(in srgb, var(--dark-gray) 72%, transparent);
+  background: var(--panel-overlay);
 }
 
 .side-meter span,
@@ -2308,7 +2308,7 @@ onUnmounted(() => {
   border: 1px solid var(--fui-border-color);
   border-left: none;
   border-radius: 0 10px 10px 0;
-  background: #111111;
+  background: var(--surface-strong);
   color: var(--fui-cyan);
   cursor: pointer;
   display: flex;
@@ -2322,7 +2322,7 @@ onUnmounted(() => {
 }
 
 .player-ear:hover {
-  background: #1a1a1a;
+  background: color-mix(in srgb, var(--surface-strong) 82%, var(--accent-soft));
   opacity: 1;
 }
 

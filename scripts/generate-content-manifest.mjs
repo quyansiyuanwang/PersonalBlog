@@ -1,4 +1,4 @@
-import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, extname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -11,6 +11,12 @@ const outputFile = resolve(outputDir, 'content.ts')
 
 function escapeTemplateLiteral(value) {
   return value.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$\{/g, '\\${')
+}
+
+function writeFileIfChanged(filePath, content) {
+  if (existsSync(filePath) && readFileSync(filePath, 'utf8') === content) return
+
+  writeFileSync(filePath, content, 'utf8')
 }
 
 mkdirSync(outputDir, { recursive: true })
@@ -46,4 +52,4 @@ ${pageEntries.join('\n')}
 }
 `
 
-writeFileSync(outputFile, output, 'utf8')
+writeFileIfChanged(outputFile, output)

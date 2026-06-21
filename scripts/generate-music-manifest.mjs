@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, extname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -11,6 +11,23 @@ const supportedExtensions = new Set(['.mp3', '.wav', '.ogg', '.flac', '.m4a', '.
 const musicDir = existsSync(rootMusicDir) ? rootMusicDir : publicMusicDir
 
 mkdirSync(publicMusicDir, { recursive: true })
+
+function writeFileIfChanged(filePath, content) {
+  if (existsSync(filePath) && readFileSync(filePath, 'utf8') === content) return
+
+  writeFileSync(filePath, content, 'utf8')
+}
+
+function copyFileIfChanged(sourcePath, targetPath) {
+  if (existsSync(targetPath)) {
+    const sourceStats = statSync(sourcePath)
+    const targetStats = statSync(targetPath)
+
+    if (sourceStats.size === targetStats.size && sourceStats.mtimeMs <= targetStats.mtimeMs) return
+  }
+
+  copyFileSync(sourcePath, targetPath)
+}
 
 function slugify(value) {
   return value
@@ -46,7 +63,7 @@ const tracks = readdirSync(musicDir)
   .map(parseTrack)
 
 tracks.forEach((track) => {
-  copyFileSync(resolve(musicDir, track.fileName), resolve(publicMusicDir, track.fileName))
+  copyFileIfChanged(resolve(musicDir, track.fileName), resolve(publicMusicDir, track.fileName))
 })
 
 const output = `export interface MusicTrack {
@@ -72,4 +89,4 @@ ${tracks
 ]
 `
 
-writeFileSync(outputFile, output, 'utf8')
+writeFileIfChanged(outputFile, output)
