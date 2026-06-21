@@ -11,6 +11,7 @@ import { RouterLink, RouterView, useRoute } from "vue-router";
 import { useSubtitle } from "../lib/subtitle";
 import { useTocState } from "../lib/tocKey";
 import { warmupBackgroundResources } from "../lib/startup";
+import router from "../router/index.ts";
 
 const CustomCursor = defineAsyncComponent(
   () => import("../components/CustomCursor.vue"),
@@ -23,10 +24,12 @@ const FuiMusicWidget = defineAsyncComponent(
 const route = useRoute();
 const leftPanelCollapsed = ref(false);
 const isPostRoute = computed(() => route.path.startsWith("/post"));
+const isLeftPanelHalfCollapsed = ref(false);
 const subtitle = useSubtitle();
 const playerExpanded = ref(true);
 const shellMainRef = ref<HTMLElement | null>(null);
 const contentScrollRef = ref<HTMLElement | null>(null);
+let leftPanelAnimationFrame: number | null = null;
 
 // ── TOC data from active post view ──
 const { headings: tocHeadings, activeId: tocActiveId, showToc } = useTocState();
@@ -41,7 +44,7 @@ const navigationItems = [
     to: "/back",
     label: "BACK",
     jump: false,
-    fn: () => window.history.back(),
+    fn: () => router.replace("/"),
     hide: false,
   },
 ];
@@ -58,15 +61,89 @@ function getExpandedLeftWidth(shellWidth: number) {
   return Math.round(shellWidth * 0.4);
 }
 
-function syncLeftPanelWidth() {
+function getHalfCollapsedLeftWidth(shellWidth: number) {
+  return Math.round(shellWidth * 0.22);
+}
+
+function getCollapsedLeftWidth() {
+  return 116;
+}
+
+function easeOutQuart(progress: number) {
+  return 1 - Math.pow(1 - progress, 4);
+}
+
+function getTargetLeftWidth(shellWidth: number) {
+  if (leftPanelCollapsed.value) {
+    return getCollapsedLeftWidth();
+  }
+
+  return isLeftPanelHalfCollapsed.value
+    ? getHalfCollapsedLeftWidth(shellWidth)
+    : getExpandedLeftWidth(shellWidth);
+}
+
+function animateLeftPanelTo(targetWidth: number) {
   const shellMain = shellMainRef.value;
+
   if (!shellMain) {
     return;
   }
 
-  shellMain.style.gridTemplateColumns = leftPanelCollapsed.value
-    ? ""
-    : `${getExpandedLeftWidth(shellMain.getBoundingClientRect().width)}px minmax(0, 1fr)`;
+  if (leftPanelAnimationFrame) {
+    cancelAnimationFrame(leftPanelAnimationFrame);
+    leftPanelAnimationFrame = null;
+  }
+
+  const shellWidth = shellMain.getBoundingClientRect().width;
+  const startWidth = shellWidth * getComputedLeftRatio(shellMain);
+  const duration = 520;
+  const startedAt = performance.now();
+
+  const tick = (now: number) => {
+    const elapsed = now - startedAt;
+    const progress = Math.min(elapsed / duration, 1);
+    const eased = easeOutQuart(progress);
+    const currentWidth = startWidth + (targetWidth - startWidth) * eased;
+
+    shellMain.style.gridTemplateColumns = `${currentWidth}px minmax(0, 1fr)`;
+
+    if (progress < 1) {
+      leftPanelAnimationFrame = requestAnimationFrame(tick);
+      return;
+    }
+
+    leftPanelAnimationFrame = null;
+    shellMain.style.gridTemplateColumns = `${targetWidth}px minmax(0, 1fr)`;
+  };
+
+  leftPanelAnimationFrame = requestAnimationFrame(tick);
+}
+
+function getComputedLeftRatio(shellMain: HTMLElement) {
+  const columns = window.getComputedStyle(shellMain).gridTemplateColumns;
+  const leftColumn = Number.parseFloat(columns.split(" ")[0] ?? "0");
+  const shellWidth = shellMain.getBoundingClientRect().width;
+
+  if (!shellWidth || !leftColumn) {
+    if (leftPanelCollapsed.value) {
+      return getCollapsedLeftWidth() / Math.max(shellWidth, 1);
+    }
+
+    return isLeftPanelHalfCollapsed.value ? 0.22 : 0.4;
+  }
+
+  return leftColumn / shellWidth;
+}
+
+function syncLeftPanelWidth() {
+  const shellMain = shellMainRef.value;
+  if (!shellMain || leftPanelAnimationFrame) {
+    return;
+  }
+
+  const shellWidth = shellMain.getBoundingClientRect().width;
+  shellMain.style.gridTemplateColumns = `${getTargetLeftWidth(shellWidth)}px minmax(0, 1fr)`;
 }
 
 function scrollToHeading(id: string) {
@@ -89,6 +166,33 @@ watch(
   () => {
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
     contentScrollRef.value?.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  },
+);
+
+watch(
+  isPostRoute,
+  (shouldHalfCollapse) => {
+    isLeftPanelHalfCollapsed.value = shouldHalfCollapse;
+
+    if (shouldHalfCollapse) {
+      playerExpanded.value = false;
+    }
+
+    if (leftPanelCollapsed.value) {
+      return;
+    }
+
+    const shellMain = shellMainRef.value;
+    if (!shellMain) {
+      return;
+    }
+
+    const shellWidth = shellMain.getBoundingClientRect().width;
+    const targetWidth = shouldHalfCollapse
+      ? getHalfCollapsedLeftWidth(shellWidth)
+      : getExpandedLeftWidth(shellWidth);
+
+    animateLeftPanelTo(targetWidth);
   },
 );
 
@@ -130,6 +234,11 @@ interface Particle {
 
 const particles = ref<Particle[]>([]);
 onMounted(() => {
+  isLeftPanelHalfCollapsed.value = isPostRoute.value;
+  if (isPostRoute.value) {
+    playerExpanded.value = false;
+  }
+  syncLeftPanelWidth();
   window.addEventListener("resize", syncLeftPanelWidth);
 
   const items: Particle[] = [];
@@ -171,6 +280,10 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener("resize", syncLeftPanelWidth);
+
+  if (leftPanelAnimationFrame) {
+    cancelAnimationFrame(leftPanelAnimationFrame);
+  }
 
   if (onlineTimer) {
     clearInterval(onlineTimer);
@@ -252,19 +365,6 @@ onUnmounted(() => {
                 </RouterLink>
               </div>
             </nav>
-            <!-- <button
-              class="left-panel-toggle"
-              :class="{ hidden: leftPanelCollapsed }"
-              type="button"
-              :aria-expanded="!leftPanelCollapsed"
-              aria-label="收起左侧面板"
-              @click="toggleLeftPanel"
-            >
-              <span>{{ leftPanelCollapsed ? "TOC" : "MIN" }}</span>
-              <span class="path-sep">//</span>
-              <span>{{ leftPanelCollapsed ? "OPEN" : "PANEL" }}</span>
-            </button> -->
-
             <!-- TOC in left panel -->
             <div
               class="left-panel-toc-wrap"
@@ -384,10 +484,6 @@ onUnmounted(() => {
 
 .shell-main.left-collapsed {
   grid-template-columns: 116px minmax(0, 1fr);
-}
-
-.shell-main.post-reading-mode {
-  grid-template-columns: 22% minmax(0, 1fr);
 }
 
 .rail-label {
@@ -661,7 +757,7 @@ onUnmounted(() => {
   font-family: var(--font-mono);
   font-size: 0.76rem;
   line-height: 1.6;
-  margin-right: 50%;
+  margin-right: 8%;
 }
 
 .toc-title {
@@ -1301,10 +1397,6 @@ onUnmounted(() => {
 
   .shell-main.left-collapsed {
     grid-template-columns: 104px minmax(0, 1fr);
-  }
-
-  .shell-main.post-reading-mode {
-    grid-template-columns: minmax(150px, 24%) minmax(0, 1fr);
   }
 
   .left-panel {
