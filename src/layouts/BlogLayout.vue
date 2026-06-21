@@ -29,7 +29,8 @@ const subtitle = useSubtitle();
 const playerExpanded = ref(true);
 const cubeTiltX = ref(-12);
 const cubeTiltY = ref(18);
-const cubePosition = ref({ x: 28, y: 320 });
+const isCubeVisible = ref(false);
+const cubePosition = ref({ x: 28, y: 22 });
 const isCubeDragging = ref(false);
 const shellMainRef = ref<HTMLElement | null>(null);
 const contentScrollRef = ref<HTMLElement | null>(null);
@@ -37,6 +38,8 @@ let leftPanelAnimationFrame: number | null = null;
 let cubePhysicsFrame: number | null = null;
 let cubeDragOffset = { x: 0, y: 0 };
 let cubeVelocity = { x: 0, y: 0 };
+let cubeAngularVelocity = { x: 0, y: 0 };
+let cubeAngularAcceleration = { x: 0, y: 0 };
 let lastCubePointer = { x: 0, y: 0, time: 0 };
 
 // ── TOC data from active post view ──
@@ -175,13 +178,10 @@ function tiltSignalCube(event: PointerEvent) {
   const offsetX = (event.clientX - rect.left) / rect.width - 0.5;
   const offsetY = (event.clientY - rect.top) / rect.height - 0.5;
 
-  cubeTiltX.value = Math.round(-12 - offsetY * 24);
-  cubeTiltY.value = Math.round(18 + offsetX * 34);
-}
-
-function resetSignalCube() {
-  cubeTiltX.value = -12;
-  cubeTiltY.value = 18;
+  cubeAngularAcceleration = {
+    x: cubeAngularAcceleration.x - offsetY * 280,
+    y: cubeAngularAcceleration.y + offsetX * 320,
+  };
 }
 
 function stopCubePhysics() {
@@ -214,6 +214,8 @@ function runCubePhysics(target: HTMLElement) {
   const gravity = 1800;
   const bounce = 0.62;
   const friction = 0.985;
+  const angularDrag = 0.992;
+  const impactSpin = 0.34;
 
   const tick = (now: number) => {
     const bounds = getCubeBounds(target);
@@ -227,6 +229,11 @@ function runCubePhysics(target: HTMLElement) {
     lastTime = now;
     cubeVelocity.y += gravity * deltaSeconds;
     cubeVelocity.x *= friction;
+    cubeAngularVelocity.x += cubeAngularAcceleration.x * deltaSeconds;
+    cubeAngularVelocity.y += cubeAngularAcceleration.y * deltaSeconds;
+    cubeAngularVelocity.x *= angularDrag;
+    cubeAngularVelocity.y *= angularDrag;
+    cubeAngularAcceleration = { x: 0, y: 0 };
 
     let nextX = cubePosition.value.x + cubeVelocity.x * deltaSeconds;
     let nextY = cubePosition.value.y + cubeVelocity.y * deltaSeconds;
@@ -234,31 +241,36 @@ function runCubePhysics(target: HTMLElement) {
     if (nextX <= 10) {
       nextX = 10;
       cubeVelocity.x = Math.abs(cubeVelocity.x) * bounce;
+      cubeAngularVelocity.y += cubeVelocity.y * impactSpin;
     } else if (nextX >= bounds.maxX) {
       nextX = bounds.maxX;
       cubeVelocity.x = -Math.abs(cubeVelocity.x) * bounce;
+      cubeAngularVelocity.y -= cubeVelocity.y * impactSpin;
     }
 
     if (nextY <= 10) {
       nextY = 10;
       cubeVelocity.y = Math.abs(cubeVelocity.y) * bounce;
+      cubeAngularVelocity.x -= cubeVelocity.x * impactSpin;
     } else if (nextY >= bounds.maxY) {
       nextY = bounds.maxY;
       cubeVelocity.y = -Math.abs(cubeVelocity.y) * bounce;
       cubeVelocity.x *= 0.82;
+      cubeAngularVelocity.x += cubeVelocity.x * impactSpin;
     }
 
     cubePosition.value = { x: nextX, y: nextY };
-    cubeTiltX.value = Math.round(-12 - cubeVelocity.y * 0.012);
-    cubeTiltY.value = Math.round(18 + cubeVelocity.x * 0.012);
+    cubeTiltX.value += cubeAngularVelocity.x * deltaSeconds;
+    cubeTiltY.value += cubeAngularVelocity.y * deltaSeconds;
 
     if (
       Math.abs(cubeVelocity.x) < 8 &&
       Math.abs(cubeVelocity.y) < 18 &&
+      Math.abs(cubeAngularVelocity.x) < 4 &&
+      Math.abs(cubeAngularVelocity.y) < 4 &&
       nextY >= bounds.maxY - 1
     ) {
       cubeVelocity = { x: 0, y: 0 };
-      resetSignalCube();
       cubePhysicsFrame = null;
       return;
     }
@@ -267,6 +279,25 @@ function runCubePhysics(target: HTMLElement) {
   };
 
   cubePhysicsFrame = requestAnimationFrame(tick);
+}
+
+function dropSignalCube() {
+  isCubeVisible.value = true;
+  stopCubePhysics();
+  cubePosition.value = { x: 28, y: 22 };
+  cubeVelocity = { x: 120, y: 0 };
+  cubeAngularVelocity = { x: 220, y: -160 };
+  cubeAngularAcceleration = { x: 0, y: 0 };
+  cubeTiltX.value = -36;
+  cubeTiltY.value = 24;
+
+  requestAnimationFrame(() => {
+    const target = document.querySelector<HTMLElement>(".signal-cube-dragger");
+
+    if (target) {
+      runCubePhysics(target);
+    }
+  });
 }
 
 function startCubeDrag(event: PointerEvent) {
@@ -283,6 +314,7 @@ function startCubeDrag(event: PointerEvent) {
     y: event.clientY - bounds.parentRect.top - cubePosition.value.y,
   };
   cubeVelocity = { x: 0, y: 0 };
+  cubeAngularAcceleration = { x: 0, y: 0 };
   lastCubePointer = { x: event.clientX, y: event.clientY, time: performance.now() };
 
   isCubeDragging.value = true;
@@ -310,6 +342,10 @@ function moveCubeDrag(event: PointerEvent) {
     x: (event.clientX - lastCubePointer.x) / deltaSeconds,
     y: (event.clientY - lastCubePointer.y) / deltaSeconds,
   };
+  cubeAngularVelocity = {
+    x: cubeAngularVelocity.x + cubeVelocity.y * 0.18,
+    y: cubeAngularVelocity.y - cubeVelocity.x * 0.18,
+  };
   lastCubePointer = { x: event.clientX, y: event.clientY, time: now };
 
   const nextX = event.clientX - bounds.parentRect.left - cubeDragOffset.x;
@@ -324,7 +360,9 @@ function moveCubeDrag(event: PointerEvent) {
 function stopCubeDrag(event: PointerEvent) {
   const target = event.currentTarget as HTMLElement;
   isCubeDragging.value = false;
-  target.releasePointerCapture(event.pointerId);
+  if (target.hasPointerCapture(event.pointerId)) {
+    target.releasePointerCapture(event.pointerId);
+  }
   runCubePhysics(target);
 }
 
@@ -507,6 +545,18 @@ onUnmounted(() => {
           :class="{ collapsed: leftPanelCollapsed, 'post-panel': isPostRoute }"
         >
           <div class="left-panel-shell">
+            <button
+              class="cube-drop-lever"
+              type="button"
+              :aria-pressed="isCubeVisible"
+              aria-label="投放信号核心方块"
+              @click="dropSignalCube"
+            >
+              <span class="lever-label">CORE</span>
+              <span class="lever-track" aria-hidden="true">
+                <span class="lever-handle"></span>
+              </span>
+            </button>
             <nav
               v-if="route.name !== 'routes'"
               class="diagonal-rail"
@@ -590,6 +640,7 @@ onUnmounted(() => {
               </div> -->
             </div>
             <button
+              v-if="isCubeVisible"
               class="signal-cube-dragger"
               :class="{ dragging: isCubeDragging }"
               type="button"
@@ -604,7 +655,6 @@ onUnmounted(() => {
               @pointermove="moveCubeDrag"
               @pointerup="stopCubeDrag"
               @pointercancel="stopCubeDrag"
-              @pointerleave="resetSignalCube"
             >
               <span class="signal-cube-scene" aria-hidden="true">
                 <span class="signal-cube">
@@ -614,8 +664,8 @@ onUnmounted(() => {
                   <span class="cube-face cube-left"></span>
                   <span class="cube-face cube-top"></span>
                   <span class="cube-face cube-bottom"></span>
-                  <span class="cube-core"></span>
                 </span>
+                <span class="cube-core"></span>
               </span>
             </button>
           </div>
@@ -689,6 +739,87 @@ onUnmounted(() => {
   text-transform: uppercase;
   letter-spacing: 0.18em;
   font-size: 0.7rem;
+}
+
+.cube-drop-lever {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 10px;
+  border: 1px solid color-mix(in srgb, var(--fui-border-color) 70%, transparent);
+  border-radius: 2px;
+  background:
+    linear-gradient(180deg, rgba(184, 255, 202, 0.08), transparent),
+    color-mix(in srgb, var(--black) 48%, transparent);
+  color: color-mix(in srgb, var(--fui-cyan) 82%, var(--text-muted));
+  font-family: var(--font-hud);
+  font-size: 0.55rem;
+  letter-spacing: 0.14em;
+  cursor: pointer;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.025),
+    0 0 16px rgba(64, 224, 208, 0.06);
+  transition:
+    border-color 0.2s ease,
+    color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.cube-drop-lever:hover {
+  border-color: color-mix(in srgb, var(--fui-cyan) 88%, transparent);
+  color: var(--text-main);
+  box-shadow:
+    inset 0 0 12px rgba(184, 255, 202, 0.06),
+    0 0 18px rgba(64, 224, 208, 0.14);
+}
+
+.lever-label {
+  line-height: 1;
+  opacity: 0.76;
+}
+
+.lever-track {
+  position: relative;
+  display: block;
+  width: 34px;
+  height: 14px;
+  border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  border-radius: 999px;
+  background:
+    linear-gradient(90deg, rgba(64, 224, 208, 0.04), rgba(184, 255, 202, 0.13)),
+    color-mix(in srgb, var(--surface) 70%, transparent);
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.36);
+}
+
+.lever-handle {
+  position: absolute;
+  left: 2px;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  box-shadow:
+    0 0 8px rgba(184, 255, 202, 0.12),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+  transform: translate3d(0, -50%, 0);
+  transition:
+    background 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+
+.cube-drop-lever[aria-pressed="true"] .lever-handle {
+  background: var(--fui-cyan);
+  box-shadow:
+    0 0 10px rgba(64, 224, 208, 0.8),
+    0 0 20px rgba(184, 255, 202, 0.26),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.4);
+  transform: translate3d(18px, -50%, 0);
 }
 
 .content-panel {
@@ -1123,11 +1254,6 @@ onUnmounted(() => {
   height: 38px;
   transform-style: preserve-3d;
   transform: rotateX(var(--cube-tilt-x)) rotateY(var(--cube-tilt-y));
-  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.signal-cube-dragger.dragging .signal-cube {
-  transition: none;
 }
 
 .cube-face {
@@ -1169,6 +1295,7 @@ onUnmounted(() => {
   position: absolute;
   left: 50%;
   top: 50%;
+  z-index: 2;
   width: 12px;
   height: 12px;
   border-radius: 50%;
@@ -1179,6 +1306,7 @@ onUnmounted(() => {
     0 0 52px rgba(184, 255, 202, 0.28);
   transform: translate3d(-50%, -50%, 0);
   animation: cube-core-pulse 1.8s ease-in-out infinite;
+  pointer-events: none;
 }
 
 @keyframes cube-core-pulse {
