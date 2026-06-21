@@ -25,20 +25,19 @@ const isPlaying = ref(false);
 const currentTime = ref(0);
 const duration = ref(0);
 const rotationDeg = ref(0);
+const isLoading = ref(false);
+const isPlaybackRequested = ref(false);
+const hasLoadError = ref(false);
 
 // ── per-track state ──
 const TRACK_COUNT = tracks.length;
 
-// blob URL  once fetched
-const blobCache = reactive<(string | null)[]>(
-  new Array(TRACK_COUNT).fill(null),
-);
-// true while fetch is in-flight
-const fetchPending = reactive<boolean[]>(new Array(TRACK_COUNT).fill(false));
+const trackReady = reactive<boolean[]>(new Array(TRACK_COUNT).fill(false));
 
 // which track is currently "loaded" into <audio>
 let loadedTrackIdx = -1;
 let shouldPlayAfterLoad = false;
+let playRequestId = 0;
 
 // rotation loop
 let animationFrameId: number | null = null;
@@ -59,20 +58,15 @@ const progressPercent = computed(() => {
   return Math.min((currentTime.value / duration.value) * 100, 100);
 });
 
-// const statusLabel = computed(() => {
-//   if (fetchPending[currentIndex.value]) return '[BUFFER]'
-//   if (!blobCache[currentIndex.value]) return '[LOAD]'
-//   return isPlaying.value ? '[PLAY]' : '[PAUSE]'
-// })
-
 const currentTrackStateLabel = computed(() => {
-  if (fetchPending[currentIndex.value]) return "LOADING";
+  if (hasLoadError.value) return "ERROR";
+  if (isLoading.value || isPlaybackRequested.value) return "LOADING";
   if (isPlaying.value) return "PLAYING";
-  if (blobCache[currentIndex.value]) return "READY";
+  if (trackReady[currentIndex.value]) return "READY";
   return "LOAD";
 });
 
-const armActive = computed(() => isPlaying.value);
+const armActive = computed(() => isPlaying.value || isPlaybackRequested.value);
 const recordStyle = computed(() => ({
   transform: `rotate(${rotationDeg.value}deg)`,
 }));
@@ -195,6 +189,23 @@ function getTrackUrl(idx: number): string {
   return new URL(tracks[idx].url, window.location.href).href;
 }
 
+function playAudio() {
+  const audio = audioRef.value;
+  if (!audio) return;
+
+  const requestId = ++playRequestId;
+  isPlaybackRequested.value = true;
+  hasLoadError.value = false;
+  setAudioSignalMode("LOAD");
+
+  audio.play().catch(() => {
+    if (requestId !== playRequestId) return;
+    isPlaybackRequested.value = false;
+    isPlaying.value = false;
+    setAudioSignalMode("ERROR");
+  });
+}
+
 // ── core: switch track ──
 function loadTrack(idx: number) {
   const audio = audioRef.value;
@@ -203,84 +214,21 @@ function loadTrack(idx: number) {
   const shouldResume = shouldPlayAfterLoad || isPlaying.value;
   shouldPlayAfterLoad = false;
 
-  // already loaded
-  if (loadedTrackIdx === idx && blobCache[idx]) {
-    // just seek to 0 if needed
-    if (shouldResume) {
-      audio.play().catch(() => {
-        isPlaying.value = false;
-      });
-    }
-    return;
-  }
-
-  // cached → apply blob URL immediately, zero network
-  if (blobCache[idx]) {
-    audio.pause();
-    audio.src = blobCache[idx]!;
-    loadedTrackIdx = idx;
-    currentTime.value = 0;
-    duration.value = audio.duration || duration.value;
-    if (shouldResume) {
-      audio.play().catch(() => {
-        isPlaying.value = false;
-      });
-    }
-    return;
-  }
-
-  // fetch already in flight → do nothing, wait for it to land
-  if (fetchPending[idx]) return;
-
-  // need to fetch
-  setAudioSignalMode("LOAD");
-  fetchPending[idx] = true;
-  const url = getTrackUrl(idx);
-
-  fetch(url)
-    .then((res) => {
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.blob();
-    })
-    .then((blob) => {
-      const blobUrl = URL.createObjectURL(blob);
-      blobCache[idx] = blobUrl;
-      fetchPending[idx] = false;
-
-      // only apply if this is still the current track
-      if (currentIndex.value !== idx) return;
-
-      const a = audioRef.value;
-      if (!a) return;
-
-      a.pause();
-      a.src = blobUrl;
-      loadedTrackIdx = idx;
-      currentTime.value = 0;
-      duration.value = a.duration || duration.value;
-
-      if (shouldResume || isPlaying.value) {
-        a.play().catch(() => {
-          isPlaying.value = false;
-        });
-      } else {
-        setAudioSignalMode("PAUSE");
-      }
-    })
-    .catch(() => {
-      fetchPending[idx] = false;
-      setAudioSignalMode("ERROR");
-      if (currentIndex.value === idx) {
-        isPlaying.value = false;
-      }
-    });
-
-  // while fetching, clear current audio
   audio.pause();
-  audio.removeAttribute("src");
-  loadedTrackIdx = -1;
+  audio.src = getTrackUrl(idx);
+  loadedTrackIdx = idx;
   currentTime.value = 0;
   duration.value = 0;
+  isLoading.value = false;
+  hasLoadError.value = false;
+  audio.load();
+
+  if (shouldResume) {
+    playAudio();
+  } else {
+    isPlaybackRequested.value = false;
+    setAudioSignalMode("PAUSE");
+  }
 }
 
 // ── playback ──
@@ -289,21 +237,17 @@ function togglePlayback() {
   if (!audio) return;
 
   if (isPlaying.value) {
+    isPlaybackRequested.value = false;
     audio.pause();
     return;
   }
 
   const idx = currentIndex.value;
-  if (blobCache[idx] && loadedTrackIdx === idx) {
-    audio.play().catch(() => {
-      isPlaying.value = false;
-    });
-    return;
+  if (loadedTrackIdx !== idx || !audio.src) {
+    loadTrack(idx);
   }
 
-  // not ready yet — start playing, loadTrack will auto-play when blob lands
-  isPlaying.value = true;
-  loadTrack(idx);
+  playAudio();
 }
 
 function playNext() {
@@ -339,10 +283,14 @@ function handleTimeUpdate() {
 }
 function handlePlay() {
   isPlaying.value = true;
+  isPlaybackRequested.value = false;
+  isLoading.value = false;
+  hasLoadError.value = false;
   setAudioSignalMode("PLAY");
 }
 function handlePause() {
   isPlaying.value = false;
+  isPlaybackRequested.value = false;
   setAudioSignalMode("PAUSE");
 }
 function handleEnded() {
@@ -355,8 +303,29 @@ function handleLoadedMetadata() {
   duration.value = a.duration;
 }
 
+function handleLoadStart() {
+  isLoading.value = true;
+  hasLoadError.value = false;
+  setAudioSignalMode("LOAD");
+}
+
+function handleCanPlay() {
+  isLoading.value = false;
+  trackReady[currentIndex.value] = true;
+}
+
+function handleWaiting() {
+  if (isPlaying.value || isPlaybackRequested.value) {
+    isLoading.value = true;
+    setAudioSignalMode("LOAD");
+  }
+}
+
 function handleError() {
   isPlaying.value = false;
+  isPlaybackRequested.value = false;
+  isLoading.value = false;
+  hasLoadError.value = true;
   setAudioSignalMode("ERROR");
 }
 
@@ -395,12 +364,16 @@ onBeforeUnmount(() => {
     <audio
       ref="audioRef"
       preload="metadata"
+      playsinline
+      @canplay="handleCanPlay"
       @ended="handleEnded"
       @error="handleError"
+      @loadstart="handleLoadStart"
       @loadedmetadata="handleLoadedMetadata"
       @pause="handlePause"
       @play="handlePlay"
       @timeupdate="handleTimeUpdate"
+      @waiting="handleWaiting"
     ></audio>
 
     <div class="vinyl-stage">
@@ -440,7 +413,7 @@ onBeforeUnmount(() => {
         class="fui-playlist-item"
         :class="{
           active: currentTrack.id === track.id,
-          ready: !!blobCache[index],
+          ready: trackReady[index],
         }"
         type="button"
         @click="selectTrack(index)"
@@ -615,10 +588,13 @@ onBeforeUnmount(() => {
   left: 250px;
   width: 70px;
   height: 228px;
+  z-index: 5;
   border: 0;
   background: transparent;
   padding: 0;
   cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .tonearm-pivot,
