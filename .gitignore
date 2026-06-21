@@ -28,3 +28,8 @@ src/generated/content.ts
 
 # generated music copies
 public/music
+
+# generated playwright test files
+.playwright-mcp
+/*.md
+!README.md

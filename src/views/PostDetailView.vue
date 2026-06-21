@@ -28,6 +28,12 @@ const headings = computed(() => {
 })
 
 const activeId = computed(() => rendererRef.value?.activeHeadingId ?? null)
+const headingIndexState = computed(() => rendererRef.value?.headingIndexState ?? {
+  ready: false,
+  indexed: 0,
+  total: 0,
+  readyIds: new Set<string>(),
+})
 
 async function hydratePost() {
   const slug = String(route.params.slug ?? '')
@@ -62,8 +68,8 @@ async function hydratePost() {
   }
 }
 
-watch([headings, activeId], ([nextHeadings, nextActiveId]) => {
-  setTocData(nextHeadings, nextActiveId)
+watch([headings, activeId, headingIndexState], ([nextHeadings, nextActiveId, nextReadyState]) => {
+  setTocData(nextHeadings, nextActiveId, nextReadyState)
 }, { immediate: true })
 
 watch(() => route.params.slug, () => {

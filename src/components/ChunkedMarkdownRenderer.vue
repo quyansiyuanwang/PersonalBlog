@@ -13,6 +13,28 @@ interface VisibleChunk {
   html: string;
 }
 
+export interface HeadingIndexState {
+  ready: boolean;
+  indexed: number;
+  total: number;
+  readyIds: Set<string>;
+}
+
+interface IdleDeadlineLike {
+  didTimeout?: boolean;
+  timeRemaining: () => number;
+}
+
+type IdleCallbackHandle = number;
+
+type WindowWithIdleCallback = Window & {
+  requestIdleCallback?: (
+    callback: (deadline: IdleDeadlineLike) => void,
+    options?: { timeout: number },
+  ) => IdleCallbackHandle;
+  cancelIdleCallback?: (handle: IdleCallbackHandle) => void;
+};
+
 const props = defineProps<{
   source: string;
   assetBase?: string;
@@ -23,6 +45,12 @@ const rangeStart = ref(0);
 const rangeEnd = ref(0);
 const headings = ref<HeadingItem[]>([]);
 const activeHeadingId = ref<string | null>(null);
+const headingIndexState = ref<HeadingIndexState>({
+  ready: false,
+  indexed: 0,
+  total: 0,
+  readyIds: new Set(),
+});
 const htmlCache = ref<Array<string | undefined>>([]);
 const chunkHeights = ref<number[]>([]);
 
@@ -37,6 +65,16 @@ let pendingScrollAligning = false;
 let pendingScrollStableFrames = 0;
 let pendingScrollLastTop = -1;
 let pendingScrollIdleFrames = 0;
+let pendingScrollCachedTop: number | null = null;
+let headingPositionFrame: number | null = null;
+let headingPositionIdleHandle: IdleCallbackHandle | null = null;
+let headingIndexVersion = 0;
+let headingIndexCursor = 0;
+let isSilentReindex = false;
+let isRenderingMermaid = false;
+let lastRangeUpdateTime = 0;
+
+const headingPositions = new Map<string, number>();
 
 const INITIAL_CHUNK_COUNT = 8;
 const MAX_CHUNK_LENGTH = 900;
@@ -47,6 +85,8 @@ const ANCHOR_OFFSET_PX = 48;
 const ANCHOR_TOLERANCE_PX = 6;
 const ANCHOR_STABLE_FRAME_COUNT = 3;
 const ANCHOR_IDLE_FRAME_COUNT = 6;
+const HEADING_INDEX_IDLE_TIMEOUT = 1200;
+const HEADING_INDEX_FALLBACK_BUDGET_MS = 6;
 
 const chunks = computed(() => splitMarkdownIntoChunks(props.source));
 const visibleChunks = computed<VisibleChunk[]>(() => {
@@ -266,6 +306,32 @@ function syncHeadings() {
   headings.value = chunkHeadings.value.flat();
 }
 
+function publishHeadingIndexState() {
+  headingIndexState.value = {
+    ready:
+      headings.value.length > 0 &&
+      headingPositions.size >= headings.value.length,
+    indexed: Math.min(headingPositions.size, headings.value.length),
+    total: headings.value.length,
+    readyIds: new Set(headingPositions.keys()),
+  };
+}
+
+function resetHeadingIndexState() {
+  headingPositions.clear();
+  headingIndexCursor = 0;
+  headingIndexVersion += 1;
+  publishHeadingIndexState();
+}
+
+function silentReindexHeadingPositions() {
+  headingIndexCursor = 0;
+  headingIndexVersion += 1;
+  isSilentReindex = true;
+  // Keep existing headingPositions — TOC stays fully active during re-index.
+  // Positions for changed chunks will be overwritten as the cursor progresses.
+}
+
 function syncActiveHeading() {
   if (pendingScrollTargetId) {
     activeHeadingId.value = pendingScrollTargetId;
@@ -276,6 +342,24 @@ function syncActiveHeading() {
 
   if (flatHeadings.length === 0) {
     activeHeadingId.value = null;
+    return;
+  }
+
+  if (headingIndexState.value.ready) {
+    const currentTop = getScrollMetrics().scrollTop + ANCHOR_OFFSET_PX + 8;
+    let currentActiveId = flatHeadings[0]?.id ?? null;
+
+    for (const heading of flatHeadings) {
+      const top = headingPositions.get(heading.id);
+
+      if (top === undefined || top > currentTop) {
+        break;
+      }
+
+      currentActiveId = heading.id;
+    }
+
+    activeHeadingId.value = currentActiveId;
     return;
   }
 
@@ -321,54 +405,61 @@ function ensureRenderedRange(start: number, end: number) {
 }
 
 async function renderMermaid() {
-  await nextTick();
-  if (isDisposed) return;
-
-  const el = containerRef.value;
-  if (!el) return;
-
-  const blocks = el.querySelectorAll<HTMLElement>(
-    ".mermaid:not([data-processed])",
-  );
-  if (blocks.length === 0) return;
+  if (isRenderingMermaid || isDisposed) return;
+  isRenderingMermaid = true;
 
   try {
-    const mermaid = await import("mermaid");
-    mermaid.default.initialize({
-      startOnLoad: false,
-      theme: "neutral",
-      securityLevel: "loose",
-    });
+    await nextTick();
+    if (isDisposed) return;
 
-    await Promise.all(
-      Array.from(blocks).map(async (block, index) => {
-        const source = block.textContent?.trim() ?? "";
+    const el = containerRef.value;
+    if (!el) return;
 
-        if (!source) {
-          return;
-        }
-
-        try {
-          const id = `mermaid-${Date.now()}-${index}-${Math.random().toString(36).slice(2)}`;
-          const { svg, bindFunctions } = await mermaid.default.render(
-            id,
-            source,
-          );
-          block.innerHTML = svg;
-          block.dataset.processed = "true";
-          bindFunctions?.(block);
-        } catch (error) {
-          block.classList.add("mermaid-error");
-          block.dataset.processed = "true";
-          block.textContent = source;
-          console.warn("Mermaid render failed:", error);
-        }
-      }),
+    const blocks = el.querySelectorAll<HTMLElement>(
+      ".mermaid:not([data-processed])",
     );
+    if (blocks.length === 0) return;
 
-    scheduleMeasureVisibleChunks();
-  } catch {
-    // mermaid failed silently — raw code is still visible
+    try {
+      const mermaid = await import("mermaid");
+      mermaid.default.initialize({
+        startOnLoad: false,
+        theme: "neutral",
+        securityLevel: "loose",
+      });
+
+      await Promise.all(
+        Array.from(blocks).map(async (block, index) => {
+          const source = block.textContent?.trim() ?? "";
+
+          if (!source) {
+            return;
+          }
+
+          try {
+            const id = `mermaid-${Date.now()}-${index}-${Math.random().toString(36).slice(2)}`;
+            const { svg, bindFunctions } = await mermaid.default.render(
+              id,
+              source,
+            );
+            block.innerHTML = svg;
+            block.dataset.processed = "true";
+            bindFunctions?.(block);
+          } catch (error) {
+            block.classList.add("mermaid-error");
+            block.dataset.processed = "true";
+            block.textContent = source;
+            console.warn("Mermaid render failed:", error);
+          }
+        }),
+      );
+
+      scheduleMeasureVisibleChunks();
+    } catch {
+      // mermaid failed silently — raw code is still visible
+    }
+  } finally {
+    isRenderingMermaid = false;
   }
 }
 
@@ -518,6 +609,19 @@ function updateVisibleRange() {
     return;
   }
 
+  // During a pending scroll target, don't shrink the range below what
+  // ensureHeadingVisible already set — this prevents smooth-scroll
+  // range updates from removing the target chunk before the scroll lands.
+  if (pendingScrollTargetId) {
+    const targetIndex = chunkHeadings.value.findIndex((items) =>
+      items.some((item) => item.id === pendingScrollTargetId),
+    );
+    if (targetIndex >= 0 && targetIndex >= rangeStart.value && targetIndex < rangeEnd.value) {
+      // Range already covers the target — don't shrink it
+      return;
+    }
+  }
+
   const { localScrollTop, viewportHeight } = getMarkdownScrollMetrics();
   const start = findIndexForOffset(Math.max(0, localScrollTop - OVERSCAN_PX));
   const targetEnd =
@@ -550,7 +654,12 @@ function measureVisibleChunks() {
 
   if (changed) {
     chunkHeights.value = nextHeights;
-    updateVisibleRange();
+    scheduleVisibleRangeUpdate();
+    if (headingIndexState.value.ready) {
+      cancelHeadingIndexWork();
+      silentReindexHeadingPositions();
+    }
+    scheduleHeadingIndexWork();
   }
 }
 
@@ -561,6 +670,242 @@ function scheduleMeasureVisibleChunks() {
     if (isDisposed) return;
     measureVisibleChunks();
   });
+}
+
+function cancelHeadingIndexWork() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const idleWindow = window as WindowWithIdleCallback;
+
+  if (headingPositionIdleHandle !== null) {
+    idleWindow.cancelIdleCallback?.(headingPositionIdleHandle);
+    headingPositionIdleHandle = null;
+  }
+
+  if (headingPositionFrame !== null) {
+    window.cancelAnimationFrame(headingPositionFrame);
+    headingPositionFrame = null;
+  }
+}
+
+function scheduleHeadingIndexWork() {
+  if (
+    isDisposed ||
+    typeof window === "undefined" ||
+    headingPositionIdleHandle !== null ||
+    headingPositionFrame !== null ||
+    headingIndexState.value.ready
+  ) {
+    return;
+  }
+
+  const version = headingIndexVersion;
+  const idleWindow = window as WindowWithIdleCallback;
+
+  if (typeof idleWindow.requestIdleCallback === "function") {
+    headingPositionIdleHandle = idleWindow.requestIdleCallback(
+      (deadline) => {
+        headingPositionIdleHandle = null;
+        indexHeadingPositions(deadline, version);
+      },
+      { timeout: HEADING_INDEX_IDLE_TIMEOUT },
+    );
+    return;
+  }
+
+  headingPositionFrame = window.requestAnimationFrame(() => {
+    const startedAt = performance.now();
+    headingPositionFrame = null;
+    indexHeadingPositions(
+      {
+        timeRemaining: () =>
+          Math.max(
+            0,
+            HEADING_INDEX_FALLBACK_BUDGET_MS - (performance.now() - startedAt),
+          ),
+      },
+      version,
+    );
+  });
+}
+
+function getAbsoluteScrollTopForElement(target: HTMLElement) {
+  const scroller = getScrollParent();
+
+  if (scroller) {
+    return Math.max(
+      0,
+      scroller.scrollTop +
+        target.getBoundingClientRect().top -
+        scroller.getBoundingClientRect().top -
+        ANCHOR_OFFSET_PX,
+    );
+  }
+
+  const statusBarHeight =
+    document.querySelector<HTMLElement>(".status-bar")?.offsetHeight ?? 0;
+
+  return Math.max(
+    0,
+    window.scrollY +
+      target.getBoundingClientRect().top -
+      statusBarHeight -
+      ANCHOR_OFFSET_PX,
+  );
+}
+
+function getEstimatedChunkAbsoluteTopForIndex(index: number) {
+  const scroller = getScrollParent();
+  const container = containerRef.value;
+  const chunkOffset = getOffsetForIndex(index);
+
+  if (scroller) {
+    const containerOffset = container
+      ? container.getBoundingClientRect().top -
+        scroller.getBoundingClientRect().top +
+        scroller.scrollTop
+      : 0;
+
+    return Math.max(0, containerOffset + chunkOffset);
+  }
+
+  const containerTop = container?.getBoundingClientRect().top ?? 0;
+  return Math.max(0, window.scrollY + containerTop + chunkOffset);
+}
+
+function measureChunkHeadingPositions(index: number) {
+  const container = containerRef.value;
+  const chunk = chunks.value[index];
+  const chunkItems = chunkHeadings.value[index] ?? [];
+
+  if (!container || !chunk || chunkItems.length === 0) {
+    return;
+  }
+
+  const chunkTop = getEstimatedChunkAbsoluteTopForIndex(index);
+
+  // Wrap the measured chunk in .markdown-body so global CSS rules
+  // (font, line-height, margins, etc.) apply correctly
+  const cssWrapper = document.createElement("div");
+  cssWrapper.className = "markdown-body";
+  cssWrapper.style.position = "fixed";
+  cssWrapper.style.visibility = "hidden";
+  cssWrapper.style.pointerEvents = "none";
+  cssWrapper.style.left = "-10000px";
+  cssWrapper.style.top = "0";
+  cssWrapper.style.width = `${container.getBoundingClientRect().width}px`;
+  cssWrapper.style.contain = "layout style";
+
+  const measuredChunk = document.createElement("div");
+  measuredChunk.className = "markdown-chunk";
+  measuredChunk.dataset.chunkIndex = String(index);
+  measuredChunk.innerHTML = htmlCache.value[index] ?? renderMarkdown(chunk, {
+    assetBase: props.assetBase,
+  });
+
+  cssWrapper.appendChild(measuredChunk);
+  document.body.appendChild(cssWrapper);
+
+  const renderedHeadings = Array.from(
+    cssWrapper.querySelectorAll<HTMLElement>("h1, h2, h3, h4, h5, h6"),
+  );
+  const wrapperTop = cssWrapper.getBoundingClientRect().top;
+
+  chunkItems.forEach((heading, headingIndex) => {
+    const target =
+      cssWrapper.querySelector<HTMLElement>(`#${CSS.escape(heading.id)}`) ??
+      renderedHeadings[headingIndex];
+
+    if (!target) {
+      headingPositions.set(heading.id, Math.max(0, chunkTop - ANCHOR_OFFSET_PX));
+      return;
+    }
+
+    const targetOffset = target.getBoundingClientRect().top - wrapperTop;
+
+    headingPositions.set(heading.id, Math.max(0, chunkTop + targetOffset - ANCHOR_OFFSET_PX));
+  });
+
+  document.body.removeChild(cssWrapper);
+}
+
+function indexHeadingPositions(deadline: IdleDeadlineLike, version: number) {
+  if (isDisposed || version !== headingIndexVersion) {
+    return;
+  }
+
+  const allHeadings = headings.value;
+
+  if (allHeadings.length === 0) {
+    publishHeadingIndexState();
+    return;
+  }
+
+  let processedChunks = 0;
+
+  while (headingIndexCursor < chunkHeadings.value.length) {
+    if (
+      processedChunks > 0 &&
+      !deadline.didTimeout &&
+      deadline.timeRemaining() <= 1
+    ) {
+      break;
+    }
+
+    const index = headingIndexCursor;
+    const chunkItems = chunkHeadings.value[index] ?? [];
+    processedChunks += 1;
+
+    if (chunkItems.length === 0) {
+      headingIndexCursor += 1;
+      continue;
+    }
+
+    const chunkEl = containerRef.value?.querySelector<HTMLElement>(
+      `[data-chunk-index="${index}"]`,
+    );
+
+    if (chunkEl) {
+      const renderedHeadings = Array.from(
+        chunkEl.querySelectorAll<HTMLElement>("h1, h2, h3, h4, h5, h6"),
+      );
+
+      chunkItems.forEach((heading, headingIndex) => {
+        const target =
+          chunkEl.querySelector<HTMLElement>(`#${CSS.escape(heading.id)}`) ??
+          renderedHeadings[headingIndex];
+
+        if (target) {
+          headingPositions.set(heading.id, getAbsoluteScrollTopForElement(target));
+        } else {
+          headingPositions.set(
+            heading.id,
+            Math.max(0, getEstimatedChunkAbsoluteTopForIndex(index) - ANCHOR_OFFSET_PX),
+          );
+        }
+      });
+    } else {
+      measureChunkHeadingPositions(index);
+    }
+
+    headingIndexCursor += 1;
+  }
+
+  if (isSilentReindex) {
+    isSilentReindex = false;
+    // Don't publish state during silent re-index — TOC stays fully active.
+    // Only update positions silently; next batch will publish since flag is cleared.
+  } else {
+    publishHeadingIndexState();
+  }
+
+  syncActiveHeading();
+
+  if (headingIndexCursor < chunkHeadings.value.length) {
+    scheduleHeadingIndexWork();
+  }
 }
 
 function schedulePostRenderWork() {
@@ -580,15 +925,17 @@ function schedulePostRenderWork() {
     void renderMermaid();
     scheduleMeasureVisibleChunks();
     schedulePendingScrollCorrection();
+    scheduleHeadingIndexWork();
   });
 }
 
 function scheduleVisibleRangeUpdate() {
-  if (
-    isDisposed ||
-    scrollAnimationFrame !== null ||
-    typeof window === "undefined"
-  ) {
+  if (isDisposed || scrollAnimationFrame !== null || typeof window === "undefined") {
+    return;
+  }
+
+  const now = Date.now();
+  if (now - lastRangeUpdateTime < 120) {
     return;
   }
 
@@ -596,6 +943,7 @@ function scheduleVisibleRangeUpdate() {
     if (isDisposed) return;
 
     scrollAnimationFrame = null;
+    lastRangeUpdateTime = Date.now();
     updateVisibleRange();
     scheduleMeasureVisibleChunks();
   });
@@ -624,18 +972,21 @@ function bindScrollParent() {
 
 function resetRendering() {
   isDisposed = false;
+  cancelHeadingIndexWork();
   pendingScrollTargetId = null;
   pendingScrollTargetIndex = -1;
   pendingScrollAligning = false;
   pendingScrollStableFrames = 0;
   pendingScrollLastTop = -1;
   pendingScrollIdleFrames = 0;
+  pendingScrollCachedTop = null;
   htmlCache.value = [];
   rangeStart.value = 0;
   rangeEnd.value = 0;
   chunkHeights.value = chunks.value.map(
     (chunk) => estimateChunkHeight(chunk) || DEFAULT_CHUNK_HEIGHT,
   );
+  resetHeadingIndexState();
 
   const initialCount = Math.min(chunks.value.length, INITIAL_CHUNK_COUNT);
   ensureRenderedRange(0, initialCount);
@@ -650,7 +1001,47 @@ function resetRendering() {
     bindScrollParent();
     updateVisibleRange();
     schedulePostRenderWork();
+    scheduleHeadingIndexWork();
   });
+}
+
+function scrollToHeadingPosition(id: string): boolean {
+  // If the heading element is in the DOM, use its exact position
+  const target = document.getElementById(id);
+  if (target) {
+    const actualTop = getAbsoluteScrollTopForElement(target);
+    const scroller = getScrollParent();
+    const targetTop = Math.max(0, actualTop);
+    if (scroller) {
+      scroller.scrollTo({ top: targetTop, behavior: "smooth" });
+    } else {
+      window.scrollTo({ top: targetTop, behavior: "smooth" });
+    }
+    return true;
+  }
+
+  // Fallback to cached position
+  const top = headingPositions.get(id);
+  if (top === undefined) {
+    return false;
+  }
+
+  const scroller = getScrollParent();
+  const targetTop = Math.max(0, top);
+  if (scroller) {
+    scroller.scrollTo({ top: targetTop, behavior: "smooth" });
+  } else {
+    window.scrollTo({ top: targetTop, behavior: "smooth" });
+  }
+  return true;
+}
+
+function isCachedScrollAligned() {
+  if (pendingScrollCachedTop === null) {
+    return false;
+  }
+
+  return Math.abs(getScrollMetrics().scrollTop - pendingScrollCachedTop) <= ANCHOR_TOLERANCE_PX;
 }
 
 function ensureHeadingVisible(id: string, options: { scroll?: boolean } = {}) {
@@ -664,17 +1055,22 @@ function ensureHeadingVisible(id: string, options: { scroll?: boolean } = {}) {
 
   activeHeadingId.value = id;
 
+  // Cancel any previous pending scroll
   if (options.scroll) {
-    pendingScrollTargetId = id;
-    pendingScrollTargetIndex = index;
+    pendingScrollTargetId = null;
+    pendingScrollTargetIndex = -1;
     pendingScrollAligning = false;
     pendingScrollStableFrames = 0;
     pendingScrollLastTop = -1;
     pendingScrollIdleFrames = 0;
-    schedulePendingScrollCorrection();
-    return;
+    pendingScrollCachedTop = null;
+    if (pendingScrollTargetFrame !== null) {
+      window.cancelAnimationFrame(pendingScrollTargetFrame);
+      pendingScrollTargetFrame = null;
+    }
   }
 
+  // Render the heading's chunk and surrounding context first
   ensureRenderedRange(Math.max(0, index - 2), index + 6);
   rangeStart.value = Math.max(0, index - 2);
   rangeEnd.value = Math.min(chunks.value.length, index + 6);
@@ -683,7 +1079,50 @@ function ensureHeadingVisible(id: string, options: { scroll?: boolean } = {}) {
     if (isDisposed) return;
 
     if (options.scroll) {
-      scrollToAnchor(id);
+      // Try to use the heading element's exact DOM position
+      const target = document.getElementById(id);
+      if (target) {
+        const scroller = getScrollParent();
+        const top = getAbsoluteScrollTopForElement(target);
+        if (scroller) {
+          scroller.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+        } else {
+          window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+        }
+        // Still set up correction to handle layout shifts
+        pendingScrollTargetId = id;
+        pendingScrollTargetIndex = index;
+        pendingScrollAligning = true;
+        pendingScrollStableFrames = 0;
+        pendingScrollLastTop = -1;
+        pendingScrollIdleFrames = 0;
+        pendingScrollCachedTop = headingPositions.get(id) ?? null;
+        schedulePendingScrollCorrection();
+        return;
+      }
+
+      // Element not in DOM yet — use cached position with seek fallback
+      if (headingIndexState.value.ready && scrollToHeadingPosition(id)) {
+        pendingScrollTargetId = id;
+        pendingScrollTargetIndex = index;
+        pendingScrollAligning = true;
+        pendingScrollStableFrames = 0;
+        pendingScrollLastTop = -1;
+        pendingScrollIdleFrames = 0;
+        pendingScrollCachedTop = headingPositions.get(id) ?? null;
+        schedulePendingScrollCorrection();
+        return;
+      }
+
+      pendingScrollTargetId = id;
+      pendingScrollTargetIndex = index;
+      pendingScrollAligning = false;
+      pendingScrollStableFrames = 0;
+      pendingScrollLastTop = -1;
+      pendingScrollIdleFrames = 0;
+      pendingScrollCachedTop = null;
+      schedulePendingScrollCorrection();
+      return;
     }
 
     schedulePostRenderWork();
@@ -713,6 +1152,40 @@ function correctPendingScrollTarget() {
   }
 
   const target = document.getElementById(id);
+
+  if (pendingScrollCachedTop !== null) {
+    // Wait for the initial smooth scroll to settle — don't re-issue scroll
+    if (target) {
+      const actualTop = getAbsoluteScrollTopForElement(target);
+      if (Math.abs(getScrollMetrics().scrollTop - actualTop) > ANCHOR_TOLERANCE_PX) {
+        schedulePendingScrollCorrection();
+        return;
+      }
+      pendingScrollCachedTop = actualTop;
+    }
+
+    if (!isCachedScrollAligned()) {
+      schedulePendingScrollCorrection();
+      return;
+    }
+
+    pendingScrollStableFrames += 1;
+
+    if (pendingScrollStableFrames < ANCHOR_STABLE_FRAME_COUNT) {
+      schedulePendingScrollCorrection();
+      return;
+    }
+
+    pendingScrollTargetId = null;
+    pendingScrollTargetIndex = -1;
+    pendingScrollAligning = false;
+    pendingScrollStableFrames = 0;
+    pendingScrollLastTop = -1;
+    pendingScrollIdleFrames = 0;
+    pendingScrollCachedTop = null;
+    syncActiveHeading();
+    return;
+  }
 
   if (!target) {
     pendingScrollAligning = false;
@@ -929,6 +1402,7 @@ watch(visibleChunkKey, () => {
 
 onBeforeUnmount(() => {
   isDisposed = true;
+  cancelHeadingIndexWork();
 
   if (typeof window !== "undefined") {
     if (scrollAnimationFrame !== null) {
@@ -949,7 +1423,7 @@ onBeforeUnmount(() => {
   }
 });
 
-defineExpose({ activeHeadingId, headings, ensureHeadingVisible });
+defineExpose({ activeHeadingId, headingIndexState, headings, ensureHeadingVisible });
 </script>
 
 <template>

@@ -90,7 +90,12 @@ interface RouteSearchItem {
 }
 
 // ── TOC data from active post view ──
-const { headings: tocHeadings, activeId: tocActiveId, showToc } = useTocState();
+const {
+  headings: tocHeadings,
+  activeId: tocActiveId,
+  readyState: tocReadyState,
+  showToc,
+} = useTocState();
 
 const navigationItems = [
   { name: "首页", to: "/home", label: "HOME", jump: true, hide: false },
@@ -423,6 +428,10 @@ function syncLeftPanelGeometry() {
 }
 
 function scrollToHeading(id: string) {
+  if (!tocReadyState.value.readyIds.has(id)) {
+    return;
+  }
+
   requestHeadingVisible(id);
 }
 
@@ -937,7 +946,7 @@ onUnmounted(() => {
               <nav v-if="showToc" class="toc" aria-label="目录">
                 <div class="toc-title-row">
                   <h4 class="toc-title">目录</h4>
-                  <span>{{ tocHeadings.length }} SECTIONS</span>
+                  <span>{{ tocReadyState.ready ? tocHeadings.length : tocReadyState.indexed }}/{{ tocHeadings.length }} SECTIONS</span>
                 </div>
                 <ul class="toc-list">
                   <li
@@ -947,11 +956,14 @@ onUnmounted(() => {
                     :class="{
                       [`toc-level-${h.level}`]: true,
                       'toc-active': tocActiveId === h.id,
+                      'toc-disabled': !tocReadyState.readyIds.has(h.id),
                     }"
                   >
                     <a
                       class="toc-link"
                       :href="`#${h.id}`"
+                      :aria-disabled="!tocReadyState.readyIds.has(h.id)"
+                      :tabindex="tocReadyState.readyIds.has(h.id) ? 0 : -1"
                       @click.prevent="scrollToHeading(h.id)"
                     >
                       <span class="toc-dot" aria-hidden="true"></span>
@@ -1794,6 +1806,14 @@ onUnmounted(() => {
   opacity: 0.7;
 }
 
+.toc-preparing {
+  margin: -2px 0 10px;
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  opacity: 0.62;
+}
+
 .toc-list {
   list-style: none;
   margin: 0;
@@ -1856,6 +1876,17 @@ onUnmounted(() => {
     color-mix(in srgb, var(--accent-soft) 62%, transparent),
     transparent
   );
+}
+
+.toc-disabled .toc-link {
+  cursor: wait;
+  opacity: 0.48;
+}
+
+.toc-disabled .toc-link:hover {
+  color: var(--text-muted);
+  padding-left: 0;
+  background: transparent;
 }
 
 @keyframes toc-wrap-pop {
