@@ -394,7 +394,7 @@ onBeforeUnmount(() => {
   <div class="fui-music-widget" :class="{ playing: isPlaying }">
     <audio
       ref="audioRef"
-      preload="auto"
+      preload="metadata"
       @ended="handleEnded"
       @error="handleError"
       @loadedmetadata="handleLoadedMetadata"

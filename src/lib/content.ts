@@ -1,6 +1,6 @@
 import { parseFrontmatter } from './frontmatter'
-import type { Post, PostFrontmatter } from '../types/post'
-import { rawPageModules, rawPostModules } from '../generated/content'
+import type { Post, PostDetail, PostFrontmatter } from '../types/post'
+import { postMetaModules, rawPageModules, rawPostModules } from '../generated/content'
 
 function normalizeFrontmatter(data: Record<string, unknown>, fallbackTitle: string): PostFrontmatter {
   const title = typeof data.title === 'string' && data.title.trim().length > 0 ? data.title.trim() : fallbackTitle
@@ -39,7 +39,7 @@ function estimateReadingTime(text: string) {
   return Math.max(1, Math.round(characterCount / 320))
 }
 
-function parsePost(filePath: string, raw: string): Post {
+function parsePost(filePath: string, raw: string): PostDetail {
   const slug = filePath.split('/').pop()?.replace(/\.md$/, '') ?? `post-${Date.now()}`
   const { data, content } = parseFrontmatter(raw)
   const frontmatter = normalizeFrontmatter(data, slug)
@@ -54,8 +54,13 @@ function parsePost(filePath: string, raw: string): Post {
   }
 }
 
+const postCache = new Map<string, Promise<PostDetail | null>>()
+
 export const allPosts = Object.entries(rawPostModules)
-  .map(([filePath, raw]) => parsePost(filePath, raw))
+  .map(([filePath]) => {
+    const slug = filePath.split('/').pop()?.replace(/\.md$/, '') ?? filePath
+    return postMetaModules[slug]
+  })
   .filter((post) => !post.frontmatter.draft)
   .sort((left, right) => +new Date(right.frontmatter.date) - +new Date(left.frontmatter.date))
 
@@ -66,3 +71,43 @@ export const pageContent = Object.fromEntries(
     return [slug, parseFrontmatter(raw)]
   }),
 )
+
+export async function loadPostBySlug(slug: string): Promise<PostDetail | null> {
+  const cached = postCache.get(slug)
+
+  if (cached) {
+    return cached
+  }
+
+  const filePath = `../content/posts/${slug}.md`
+  const loader = rawPostModules[filePath]
+
+  if (!loader) {
+    return null
+  }
+
+  const task = (async () => {
+    const raw = await loader()
+    const post = parsePost(filePath, raw)
+
+    if (post.frontmatter.draft) {
+      return null
+    }
+
+    return post
+  })()
+
+  postCache.set(slug, task)
+
+  const result = await task
+
+  if (!result) {
+    postCache.delete(slug)
+  }
+
+  return result
+}
+
+export function prefetchPostBySlug(slug: string) {
+  void loadPostBySlug(slug)
+}

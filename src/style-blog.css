@@ -729,7 +729,7 @@ img {
 }
 
 /* ── Markdown feature patterns (replacing old route-feature HTML) ── */
-.markdown-body p > strong:first-child {
+.page-stack:not(.post-detail) .markdown-body p > strong:first-child {
   color: var(--accent);
   font-family: var(--font-hud);
   font-size: 0.64rem;
@@ -737,14 +737,14 @@ img {
   text-transform: uppercase;
 }
 
-.markdown-body ol {
+.page-stack:not(.post-detail) .markdown-body ol {
   display: grid;
   gap: 12px;
   padding-left: 0;
   list-style: none;
 }
 
-.markdown-body ol li {
+.page-stack:not(.post-detail) .markdown-body ol li {
   border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
   background:
     linear-gradient(135deg, color-mix(in srgb, var(--accent-soft) 46%, transparent), transparent 52%),
@@ -758,7 +758,7 @@ img {
   line-height: 1.9;
 }
 
-.markdown-body ol li::marker {
+.page-stack:not(.post-detail) .markdown-body ol li::marker {
   color: var(--accent);
   font-family: var(--font-hud);
   font-size: 0.64rem;
@@ -1137,6 +1137,15 @@ img {
   border-bottom: 1px solid color-mix(in srgb, var(--accent-soft) 86%, transparent);
 }
 
+.post-loading {
+  padding: 18px 0;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
 .tag-row {
   display: flex;
   align-items: center;
@@ -1205,6 +1214,72 @@ img {
   line-height: 1.9;
 }
 
+.post-detail .markdown-body ol,
+.post-detail .markdown-body ul {
+  display: block;
+  padding-left: 1.45em;
+  margin: 0.85em 0 1.15em;
+}
+
+.post-detail .markdown-body ol {
+  list-style: decimal;
+}
+
+.post-detail .markdown-body ul {
+  list-style: disc;
+}
+
+.post-detail .markdown-body li {
+  display: list-item;
+  padding-left: 0.24em;
+  margin: 0.35em 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.post-detail .markdown-body li::marker {
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 0.82em;
+}
+
+.markdown-body table {
+  display: table;
+  width: 100%;
+  margin: 1.25em 0;
+  border-collapse: collapse;
+  border-spacing: 0;
+  color: var(--text-main) !important;
+  background: color-mix(in srgb, var(--surface) 72%, transparent) !important;
+}
+
+.markdown-body thead,
+.markdown-body tbody,
+.markdown-body tr {
+  background: transparent !important;
+}
+
+.markdown-body table th,
+.markdown-body table td {
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--line) 82%, transparent) !important;
+  color: var(--text-main) !important;
+  background: transparent !important;
+}
+
+.markdown-body table th {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  color: var(--accent) !important;
+  background: color-mix(in srgb, var(--accent-soft) 62%, transparent) !important;
+}
+
+.markdown-body table tr:nth-child(even) td {
+  background: color-mix(in srgb, var(--surface-strong) 44%, transparent) !important;
+}
+
 /* ── Code blocks ── */
 .markdown-body pre {
   padding: 18px;
@@ -1220,6 +1295,7 @@ img {
 }
 
 .markdown-body pre code {
+  display: block;
   font-family: var(--font-code);
   font-size: 0.82rem;
   line-height: 1.65;
@@ -1244,6 +1320,9 @@ img {
 
 /* inline code */
 .markdown-body :not(pre) > code {
+  display: inline;
+  width: auto;
+  white-space: break-spaces;
   font-family: var(--font-code);
   font-size: 0.85em;
   padding: 0.2em 0.45em;
@@ -1895,6 +1974,7 @@ body::before {
 
   .markdown-body table {
     display: block;
+    max-width: 100%;
     overflow-x: auto;
     white-space: nowrap;
   }

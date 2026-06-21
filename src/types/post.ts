@@ -10,9 +10,12 @@ export interface PostFrontmatter {
 export interface Post {
   slug: string
   frontmatter: PostFrontmatter
-  content: string
   excerpt: string
   readingTime: number
+}
+
+export interface PostDetail extends Post {
+  content: string
 }
 
 export interface ArchiveGroup {

@@ -1,4 +1,4 @@
-import { allPosts, pageContent } from './content'
+import { allPosts, loadPostBySlug as loadPostContentBySlug, pageContent, prefetchPostBySlug as prefetchPostContentBySlug } from './content'
 import type { ArchiveGroup, Post } from '../types/post'
 
 export function getAllPosts() {
@@ -11,6 +11,24 @@ export function getFeaturedPosts(limit = 3) {
 
 export function getPostBySlug(slug: string) {
   return allPosts.find((post) => post.slug === slug)
+}
+
+export async function loadPostBySlug(slug: string) {
+  return loadPostContentBySlug(slug)
+}
+
+export function prefetchPostBySlug(slug: string) {
+  prefetchPostContentBySlug(slug)
+}
+
+export function getNextPost(currentSlug: string) {
+  const currentIndex = allPosts.findIndex((post) => post.slug === currentSlug)
+
+  if (currentIndex === -1 || currentIndex >= allPosts.length - 1) {
+    return null
+  }
+
+  return allPosts[currentIndex + 1]
 }
 
 export function getRelatedPosts(currentSlug: string, limit = 2) {

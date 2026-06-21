@@ -13,20 +13,6 @@ const loadLifeView = () => import("../views/LifeView.vue");
 const loadContactView = () => import("../views/ContactView.vue");
 const loadFriendsView = () => import("../views/FriendsView.vue");
 
-const routePrefetchers = [
-  loadHomeView,
-  loadRoutesView,
-  loadPostDetailView,
-  loadAboutView,
-  loadArchiveView,
-  loadTagsView,
-  loadPortfolioView,
-  loadExperienceView,
-  loadLifeView,
-  loadContactView,
-  loadFriendsView,
-];
-
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
@@ -139,41 +125,5 @@ const router = createRouter({
 router.afterEach((to) => {
   applyRouteSeo(to);
 });
-
-export function prefetchRouteComponents() {
-  const runPrefetch = () => {
-    return Promise.allSettled(
-      routePrefetchers.map((loadView) => loadView()),
-    ).then(() => undefined);
-  };
-
-  if (typeof window === "undefined") {
-    return runPrefetch();
-  }
-
-  const idleWindow = window as Window & {
-    requestIdleCallback?: (
-      callback: () => void,
-      options?: { timeout: number },
-    ) => number;
-  };
-
-  if (typeof idleWindow.requestIdleCallback === "function") {
-    return new Promise<void>((resolve) => {
-      idleWindow.requestIdleCallback?.(
-        () => {
-          void runPrefetch().then(resolve);
-        },
-        { timeout: 1200 },
-      );
-    });
-  }
-
-  return new Promise<void>((resolve) => {
-    window.setTimeout(() => {
-      void runPrefetch().then(resolve);
-    }, 600);
-  });
-}
 
 export default router;

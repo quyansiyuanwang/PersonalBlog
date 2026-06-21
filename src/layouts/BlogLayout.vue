@@ -2,6 +2,7 @@
 import {
   computed,
   defineAsyncComponent,
+  Suspense,
   ref,
   onMounted,
   onUnmounted,
@@ -10,7 +11,6 @@ import {
 import { RouterLink, RouterView, useRoute } from "vue-router";
 import { useSubtitle } from "../lib/subtitle";
 import { useTocState } from "../lib/tocKey";
-import { warmupBackgroundResources } from "../lib/startup";
 import { useTheme } from "../lib/theme";
 import { useAudioSignal } from "../lib/audioSignal";
 import { getAllPosts } from "../lib/posts";
@@ -26,6 +26,10 @@ const FuiMusicWidget = defineAsyncComponent(
 
 const FuiCatDotMatrix = defineAsyncComponent(
   () => import("../components/FuiCatDotMatrix.vue"),
+);
+
+const ScrollMinimap = defineAsyncComponent(
+  () => import("../components/ScrollMinimap.vue"),
 );
 
 const route = useRoute();
@@ -825,26 +829,6 @@ onMounted(() => {
   }
   particles.value = items;
 
-  const idleWindow = window as Window & {
-    requestIdleCallback?: (
-      callback: () => void,
-      options?: { timeout: number },
-    ) => number;
-  };
-
-  if (typeof idleWindow.requestIdleCallback === "function") {
-    idleWindow.requestIdleCallback(
-      () => {
-        void warmupBackgroundResources();
-      },
-      { timeout: 1500 },
-    );
-    return;
-  }
-
-  window.setTimeout(() => {
-    void warmupBackgroundResources();
-  }, 180);
 });
 
 onUnmounted(() => {
@@ -1175,17 +1159,33 @@ onUnmounted(() => {
             <div ref="contentScrollRef" class="content-panel-scroll">
               <RouterView v-slot="{ Component }">
                 <Transition name="page" mode="out-in">
-                  <component
-                    :is="Component"
-                    :key="
-                      String(
-                        route.name ?? route.path.split('/')[1] ?? route.path,
-                      )
-                    "
-                  />
+                  <Suspense>
+                    <component
+                      :is="Component"
+                      :key="
+                        String(
+                          route.name ?? route.path.split('/')[1] ?? route.path,
+                        )
+                      "
+                    />
+                    <template #fallback>
+                      <div class="page-loading-shell" aria-live="polite" aria-busy="true">
+                        <div class="page-loading-grid" aria-hidden="true">
+                          <span></span>
+                          <span></span>
+                          <span></span>
+                          <span></span>
+                          <span></span>
+                          <span></span>
+                        </div>
+                        <p class="page-loading-copy">Loading page...</p>
+                      </div>
+                    </template>
+                  </Suspense>
                 </Transition>
               </RouterView>
             </div>
+            <ScrollMinimap :scroll-target="contentScrollRef" />
           </div>
         </section>
       </main>
@@ -1218,6 +1218,62 @@ onUnmounted(() => {
   flex: 1;
   min-height: 0;
   will-change: grid-template-columns;
+}
+
+.page-loading-shell {
+  display: grid;
+  gap: 18px;
+  min-height: min(42vh, 420px);
+  align-content: center;
+  justify-items: start;
+  padding: 28px 4px;
+}
+
+.page-loading-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(72px, 110px));
+  gap: 10px;
+}
+
+.page-loading-grid span {
+  height: 14px;
+  border-radius: 2px;
+  border: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+  background:
+    linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 24%, transparent), transparent),
+    color-mix(in srgb, var(--surface-strong) 72%, transparent);
+  background-size: 220% 100%;
+  animation: page-loading-scan 1.2s linear infinite;
+}
+
+.page-loading-grid span:nth-child(1) { width: 88px; }
+.page-loading-grid span:nth-child(2) { width: 118px; animation-delay: 0.08s; }
+.page-loading-grid span:nth-child(3) { width: 96px; animation-delay: 0.16s; }
+.page-loading-grid span:nth-child(4) { width: 124px; animation-delay: 0.24s; }
+.page-loading-grid span:nth-child(5) { width: 82px; animation-delay: 0.32s; }
+.page-loading-grid span:nth-child(6) { width: 108px; animation-delay: 0.4s; }
+
+.page-loading-copy {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+@keyframes page-loading-scan {
+  0% {
+    background-position: 200% 0;
+    opacity: 0.52;
+  }
+  50% {
+    opacity: 0.92;
+  }
+  100% {
+    background-position: -20% 0;
+    opacity: 0.52;
+  }
 }
 
 .shell-main.left-collapsed {
@@ -2714,6 +2770,7 @@ onUnmounted(() => {
 }
 
 .content-panel-shell {
+  position: relative;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   height: 100%;
@@ -2735,7 +2792,7 @@ onUnmounted(() => {
   max-height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 8px 10px 40px 4px;
+  padding: 8px 28px 40px 4px;
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
@@ -2762,6 +2819,7 @@ onUnmounted(() => {
 
 .reading-mode .content-panel-scroll {
   padding-left: 4px;
+  padding-right: 28px;
 }
 
 .reading-mode .content-panel-scroll > * {

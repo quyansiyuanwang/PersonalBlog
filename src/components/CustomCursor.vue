@@ -20,8 +20,13 @@ let mouseY = -100
 let currentTarget: Element | null = null
 let shrinkRaf = 0
 let syncRaf = 0
+let moveRaf = 0
+let hoverProbeRaf = 0
 let lastFrameX = -16
 let lastFrameY = -16
+let lastHoverProbeAt = 0
+
+const HOVER_PROBE_INTERVAL = 80
 
 function isElementVisible(target: Element | null) {
   if (!(target instanceof HTMLElement)) return false
@@ -130,6 +135,22 @@ function updateHoverTarget() {
   }
 }
 
+function scheduleHoverProbe(force = false) {
+  if (hoverProbeRaf) return
+
+  hoverProbeRaf = requestAnimationFrame((now) => {
+    hoverProbeRaf = 0
+
+    if (!force && now - lastHoverProbeAt < HOVER_PROBE_INTERVAL) {
+      scheduleHoverProbe(true)
+      return
+    }
+
+    lastHoverProbeAt = now
+    updateHoverTarget()
+  })
+}
+
 function syncCursorToTarget() {
   const target = currentTarget as HTMLElement | null
   const c = elRef.value
@@ -162,20 +183,24 @@ function onMouseMove(e: MouseEvent) {
   mouseX = e.clientX
   mouseY = e.clientY
 
-  updateLocatorPosition()
+  if (moveRaf) return
 
-  updateHoverTarget()
+  moveRaf = requestAnimationFrame(() => {
+    moveRaf = 0
+    updateLocatorPosition()
+    scheduleHoverProbe()
 
-  if (!currentTarget && !shrinkRaf) {
-    const el = elRef.value
-    if (el) {
-      placeCursorFrame(mouseX - 16, mouseY - 16)
+    if (!currentTarget && !shrinkRaf) {
+      const el = elRef.value
+      if (el) {
+        placeCursorFrame(mouseX - 16, mouseY - 16)
+      }
     }
-  }
+  })
 }
 
 function onPointerContextChange() {
-  updateHoverTarget()
+  scheduleHoverProbe(true)
 }
 
 onMounted(() => {
@@ -196,6 +221,8 @@ onUnmounted(() => {
   window.removeEventListener('scroll', scheduleCursorSync, true)
   if (shrinkRaf) cancelAnimationFrame(shrinkRaf)
   if (syncRaf) cancelAnimationFrame(syncRaf)
+  if (moveRaf) cancelAnimationFrame(moveRaf)
+  if (hoverProbeRaf) cancelAnimationFrame(hoverProbeRaf)
 })
 </script>
 
