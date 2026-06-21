@@ -27,6 +27,8 @@ let lastFrameY = -16
 let lastHoverProbeAt = 0
 
 const HOVER_PROBE_INTERVAL = 80
+const CURSOR_UPDATE_DELAY_MS = 50
+let cursorUpdateTimer: ReturnType<typeof setTimeout> | null = null
 
 function isElementVisible(target: Element | null) {
   if (!(target instanceof HTMLElement)) return false
@@ -203,10 +205,33 @@ function onPointerContextChange() {
   scheduleHoverProbe(true)
 }
 
+function scheduleCursorUpdate() {
+  if (cursorUpdateTimer) clearTimeout(cursorUpdateTimer)
+  cursorUpdateTimer = setTimeout(() => {
+    cursorUpdateTimer = null
+    scheduleHoverProbe(true)
+  }, CURSOR_UPDATE_DELAY_MS)
+}
+
+function onFocusChange(e: FocusEvent) {
+  const target = e.target as HTMLElement | null
+  if (!target) return
+
+  const rect = target.getBoundingClientRect()
+  if (rect.width > 0 && rect.height > 0) {
+    mouseX = rect.left + rect.width / 2
+    mouseY = rect.top + rect.height / 2
+  }
+
+  scheduleCursorUpdate()
+}
+
 onMounted(() => {
   updateLocatorPosition()
   placeCursorFrame(mouseX - 16, mouseY - 16)
   document.addEventListener('mousemove', onMouseMove, { passive: true })
+  document.addEventListener('keydown', scheduleCursorUpdate, { passive: true })
+  document.addEventListener('focusin', onFocusChange, { passive: true })
   document.addEventListener('scroll', onPointerContextChange, { passive: true, capture: true })
   window.addEventListener('resize', onPointerContextChange, { passive: true })
   window.addEventListener('resize', scheduleCursorSync, { passive: true })
@@ -215,6 +240,8 @@ onMounted(() => {
 
 onUnmounted(() => {
   document.removeEventListener('mousemove', onMouseMove)
+  document.removeEventListener('keydown', scheduleCursorUpdate)
+  document.removeEventListener('focusin', onFocusChange)
   document.removeEventListener('scroll', onPointerContextChange, true)
   window.removeEventListener('resize', onPointerContextChange)
   window.removeEventListener('resize', scheduleCursorSync)
@@ -223,6 +250,7 @@ onUnmounted(() => {
   if (syncRaf) cancelAnimationFrame(syncRaf)
   if (moveRaf) cancelAnimationFrame(moveRaf)
   if (hoverProbeRaf) cancelAnimationFrame(hoverProbeRaf)
+  if (cursorUpdateTimer) clearTimeout(cursorUpdateTimer)
 })
 </script>
 
