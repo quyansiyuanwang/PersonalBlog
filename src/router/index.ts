@@ -7,6 +7,11 @@ const loadPostDetailView = () => import("../views/PostDetailView.vue");
 const loadAboutView = () => import("../views/AboutView.vue");
 const loadArchiveView = () => import("../views/ArchiveView.vue");
 const loadTagsView = () => import("../views/TagsView.vue");
+const loadPortfolioView = () => import("../views/PortfolioView.vue");
+const loadExperienceView = () => import("../views/ExperienceView.vue");
+const loadLifeView = () => import("../views/LifeView.vue");
+const loadContactView = () => import("../views/ContactView.vue");
+const loadFriendsView = () => import("../views/FriendsView.vue");
 
 const routePrefetchers = [
   loadHomeView,
@@ -15,6 +20,11 @@ const routePrefetchers = [
   loadAboutView,
   loadArchiveView,
   loadTagsView,
+  loadPortfolioView,
+  loadExperienceView,
+  loadLifeView,
+  loadContactView,
+  loadFriendsView,
 ];
 
 const router = createRouter({
@@ -45,6 +55,51 @@ const router = createRouter({
       name: "post-detail",
       component: loadPostDetailView,
       meta: { title: "文章" },
+    },
+    {
+      path: "/portfolio",
+      name: "portfolio",
+      component: loadPortfolioView,
+      meta: {
+        title: "作品",
+        description: "浏览个人项目、界面实验和长期维护的小工具。",
+      },
+    },
+    {
+      path: "/experience",
+      name: "experience",
+      component: loadExperienceView,
+      meta: {
+        title: "经验",
+        description: "整理工作方式、项目经验和阶段性复盘。",
+      },
+    },
+    {
+      path: "/life",
+      name: "life",
+      component: loadLifeView,
+      meta: {
+        title: "生活",
+        description: "记录阅读、生活、情绪和日常节奏。",
+      },
+    },
+    {
+      path: "/contact",
+      name: "contact",
+      component: loadContactView,
+      meta: {
+        title: "联系",
+        description: "找到交流写作、界面、自动化和长期主义实践的入口。",
+      },
+    },
+    {
+      path: "/friends",
+      name: "friends",
+      component: loadFriendsView,
+      meta: {
+        title: "友链",
+        description: "收集值得长期阅读和交换灵感的站点。",
+      },
     },
     {
       path: "/about",

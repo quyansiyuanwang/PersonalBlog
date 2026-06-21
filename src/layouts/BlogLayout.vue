@@ -55,6 +55,11 @@ const signalLogs = [
 ];
 const brailleLine = "⠿⡇⢿⣷⠶⣀⡿⠋⠙⢿⡄⠂⠆⡐⠠⢀⡀⠙⢷⣦⠿⠇";
 const waveBars = [34, 58, 42, 76, 48, 64, 36, 82, 54, 68, 40, 72, 46, 60];
+const signalStats = [
+  { label: "NODE", value: "07" },
+  { label: "PING", value: "18MS" },
+  { label: "MODE", value: "IDLE" },
+];
 
 interface CubeFragment {
   id: number;
@@ -859,28 +864,38 @@ onUnmounted(() => {
               <span>LOW BAND</span>
             </div>
             <div class="signal-console-body">
-              <div class="signal-log-lines" aria-hidden="true">
-                <span
-                  v-for="(log, index) in signalLogs"
-                  :key="log"
-                  class="signal-log-line"
-                  :style="{ '--log-index': index }"
-                >
-                  {{ log }}
-                </span>
+              <div class="signal-console-primary">
+                <div class="signal-log-lines" aria-hidden="true">
+                  <span
+                    v-for="(log, index) in signalLogs"
+                    :key="log"
+                    class="signal-log-line"
+                    :style="{ '--log-index': index }"
+                  >
+                    {{ log }}
+                  </span>
+                </div>
+                <p class="signal-braille" aria-hidden="true">{{ brailleLine }}</p>
               </div>
-              <div class="signal-wave" aria-hidden="true">
-                <span
-                  v-for="(bar, index) in waveBars"
-                  :key="index"
-                  class="signal-wave-bar"
-                  :style="{
-                    '--bar-height': bar + '%',
-                    '--bar-delay': index * 0.09 + 's',
-                  }"
-                ></span>
+              <div class="signal-console-side" aria-hidden="true">
+                <div class="signal-wave">
+                  <span
+                    v-for="(bar, index) in waveBars"
+                    :key="index"
+                    class="signal-wave-bar"
+                    :style="{
+                      '--bar-height': bar + '%',
+                      '--bar-delay': index * 0.09 + 's',
+                    }"
+                  ></span>
+                </div>
+                <div class="signal-stat-grid">
+                  <span v-for="stat in signalStats" :key="stat.label">
+                    <small>{{ stat.label }}</small>
+                    <strong>{{ stat.value }}</strong>
+                  </span>
+                </div>
               </div>
-              <p class="signal-braille" aria-hidden="true">{{ brailleLine }}</p>
             </div>
           </section>
         </aside>
@@ -1415,7 +1430,7 @@ onUnmounted(() => {
   position: relative;
   display: grid;
   gap: 9px;
-  width: min(360px, calc(100% - 18px));
+  width: calc(100% - 18px);
   margin: 0 0 0 6px;
   padding: 11px 12px 10px;
   border: 1px solid color-mix(in srgb, var(--line) 68%, transparent);
@@ -1501,7 +1516,22 @@ onUnmounted(() => {
   position: relative;
   z-index: 1;
   display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(112px, 0.75fr);
   gap: 8px;
+}
+
+.signal-console-primary {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+}
+
+.signal-console-side {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+  padding-left: 10px;
+  border-left: 1px solid color-mix(in srgb, var(--line) 44%, transparent);
 }
 
 .signal-log-lines {
@@ -1534,8 +1564,7 @@ onUnmounted(() => {
   align-items: end;
   gap: 4px;
   height: 28px;
-  padding: 2px 0 0;
-  border-top: 1px solid color-mix(in srgb, var(--line) 46%, transparent);
+  padding: 0;
 }
 
 .signal-wave-bar {
@@ -1563,6 +1592,40 @@ onUnmounted(() => {
   opacity: 0.34;
   mask-image: linear-gradient(90deg, transparent, #000 12%, #000 82%, transparent);
   animation: signal-braille-drift 6.8s ease-in-out infinite;
+}
+
+.signal-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.signal-stat-grid span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 6px 5px;
+  border: 1px solid color-mix(in srgb, var(--line) 38%, transparent);
+  background: rgba(64, 224, 208, 0.025);
+}
+
+.signal-stat-grid small {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-family: var(--font-hud);
+  font-size: 0.46rem;
+  letter-spacing: 0.1em;
+  text-overflow: ellipsis;
+}
+
+.signal-stat-grid strong {
+  overflow: hidden;
+  color: color-mix(in srgb, var(--fui-cyan) 72%, var(--text-main));
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-overflow: ellipsis;
 }
 
 @keyframes signal-console-scan {
