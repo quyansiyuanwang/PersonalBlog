@@ -1,18 +1,12 @@
 <script setup lang="ts">
 defineProps<{
-  code: string
-  title: string
-  description?: string
-}>()
+  code: string;
+  title: string;
+  description?: string;
+}>();
 </script>
 
-<template>
-  <section class="page-section-header section-heading reveal">
-    <p class="eyebrow"><span class="path-sep">></span> {{ code }}</p>
-    <h1 class="single-title">{{ title }}</h1>
-    <p v-if="description" class="section-description">{{ description }}</p>
-  </section>
-</template>
+<template></template>
 
 <style scoped>
 .page-section-header {
