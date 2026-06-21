@@ -1186,12 +1186,24 @@ img {
 /* ── Markdown ── */
 .markdown-wrapper {
   padding-top: 8px;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: clip;
 }
 
 .markdown-body {
   background: transparent !important;
   color: var(--text-main) !important;
   font-family: inherit !important;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.markdown-body > *,
+.markdown-chunk > * {
+  max-width: 100%;
 }
 
 .markdown-body h1,
@@ -1253,6 +1265,7 @@ img {
 .markdown-body table {
   display: table;
   width: 100%;
+  max-width: 100%;
   margin: 1.25em 0;
   border-collapse: collapse;
   border-spacing: 0;
@@ -1272,6 +1285,8 @@ img {
   border: 1px solid color-mix(in srgb, var(--line) 82%, transparent) !important;
   color: var(--text-main) !important;
   background: transparent !important;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .markdown-body table th {
@@ -1288,6 +1303,7 @@ img {
 
 /* ── Code blocks ── */
 .markdown-body pre {
+  max-width: 100%;
   padding: 18px;
   background:
     linear-gradient(135deg, rgba(184, 255, 202, 0.025), transparent 42%),
@@ -1381,6 +1397,16 @@ img {
 .markdown-body .mermaid {
   text-align: center;
   margin: 1.5em 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.markdown-body .mermaid svg {
+  display: block;
+  max-width: 100% !important;
+  height: auto !important;
+  margin: 0 auto;
 }
 
 .markdown-body .mermaid:not([data-processed]) {

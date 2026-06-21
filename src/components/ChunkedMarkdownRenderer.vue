@@ -316,6 +316,69 @@ function ensureHeadingVisible(id: string) {
   })
 }
 
+function findScrollParent(element: HTMLElement) {
+  let current = element.parentElement
+
+  while (current) {
+    const style = window.getComputedStyle(current)
+    const canScroll = /(auto|scroll)/.test(`${style.overflowY}${style.overflow}`)
+
+    if (canScroll && current.scrollHeight > current.clientHeight) {
+      return current
+    }
+
+    current = current.parentElement
+  }
+
+  return null
+}
+
+function scrollToAnchor(id: string) {
+  const target = document.getElementById(id)
+  const container = containerRef.value
+
+  if (!target || !container) {
+    return
+  }
+
+  const scroller = findScrollParent(container)
+
+  if (!scroller) {
+    const statusBarHeight = document.querySelector<HTMLElement>('.status-bar')?.offsetHeight ?? 0
+    const top = target.getBoundingClientRect().top + window.scrollY - statusBarHeight - 16
+    window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
+    return
+  }
+
+  const scrollerTop = scroller.getBoundingClientRect().top
+  const targetTop = target.getBoundingClientRect().top
+  scroller.scrollTo({
+    top: scroller.scrollTop + targetTop - scrollerTop - 12,
+    behavior: 'smooth',
+  })
+}
+
+function handleMarkdownClick(event: MouseEvent) {
+  const link = (event.target as Element | null)?.closest<HTMLAnchorElement>('a[href^="#"]')
+
+  if (!link) {
+    return
+  }
+
+  const id = decodeURIComponent(link.hash.slice(1))
+  if (!id) {
+    return
+  }
+
+  event.preventDefault()
+  ensureHeadingVisible(id)
+
+  void nextTick(() => {
+    scrollToAnchor(id)
+    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#${encodeURIComponent(id)}`)
+  })
+}
+
 watch([chunks, () => props.assetBase], () => {
   resetRendering()
 }, { immediate: true })
@@ -338,7 +401,7 @@ defineExpose({ headings, ensureHeadingVisible })
 
 <template>
   <div class="chunked-markdown-renderer">
-    <div ref="containerRef" class="markdown-wrapper markdown-body">
+    <div ref="containerRef" class="markdown-wrapper markdown-body" @click="handleMarkdownClick">
       <div
         v-for="(html, index) in visibleHtmlChunks"
         :key="index"
@@ -358,6 +421,8 @@ defineExpose({ headings, ensureHeadingVisible })
 .chunked-markdown-renderer {
   display: grid;
   gap: 0;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .chunk-progress {
@@ -384,5 +449,7 @@ defineExpose({ headings, ensureHeadingVisible })
 .markdown-chunk {
   content-visibility: auto;
   contain-intrinsic-size: auto 520px;
+  min-width: 0;
+  max-width: 100%;
 }
 </style>

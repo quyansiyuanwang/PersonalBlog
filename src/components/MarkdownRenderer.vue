@@ -82,6 +82,57 @@ function prepareImages() {
   })
 }
 
+function findScrollParent(element: HTMLElement) {
+  let current = element.parentElement
+
+  while (current) {
+    const style = window.getComputedStyle(current)
+    const canScroll = /(auto|scroll)/.test(`${style.overflowY}${style.overflow}`)
+
+    if (canScroll && current.scrollHeight > current.clientHeight) {
+      return current
+    }
+
+    current = current.parentElement
+  }
+
+  return null
+}
+
+function handleMarkdownClick(event: MouseEvent) {
+  const link = (event.target as Element | null)?.closest<HTMLAnchorElement>('a[href^="#"]')
+
+  if (!link) {
+    return
+  }
+
+  const id = decodeURIComponent(link.hash.slice(1))
+  const target = document.getElementById(id)
+  const container = containerRef.value
+
+  if (!id || !target || !container) {
+    return
+  }
+
+  event.preventDefault()
+
+  const scroller = findScrollParent(container)
+  if (scroller) {
+    const scrollerTop = scroller.getBoundingClientRect().top
+    const targetTop = target.getBoundingClientRect().top
+    scroller.scrollTo({
+      top: scroller.scrollTop + targetTop - scrollerTop - 12,
+      behavior: 'smooth',
+    })
+  } else {
+    const statusBarHeight = document.querySelector<HTMLElement>('.status-bar')?.offsetHeight ?? 0
+    const top = target.getBoundingClientRect().top + window.scrollY - statusBarHeight - 16
+    window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
+  }
+
+  window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#${encodeURIComponent(id)}`)
+}
+
 onMounted(() => {
   prepareImages()
   renderMermaid()
@@ -99,5 +150,5 @@ defineExpose({ headings })
 </script>
 
 <template>
-  <div ref="containerRef" class="markdown-wrapper markdown-body" v-html="html"></div>
+  <div ref="containerRef" class="markdown-wrapper markdown-body" @click="handleMarkdownClick" v-html="html"></div>
 </template>
