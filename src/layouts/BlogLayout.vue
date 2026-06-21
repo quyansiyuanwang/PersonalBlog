@@ -32,15 +32,27 @@ const cubeTiltY = ref(18);
 const isCubeVisible = ref(false);
 const cubePosition = ref({ x: 28, y: 22 });
 const isCubeDragging = ref(false);
+const cubeFragments = ref<CubeFragment[]>([]);
 const shellMainRef = ref<HTMLElement | null>(null);
 const contentScrollRef = ref<HTMLElement | null>(null);
 let leftPanelAnimationFrame: number | null = null;
 let cubePhysicsFrame: number | null = null;
+let cubeFragmentTimer: number | null = null;
 let cubeDragOffset = { x: 0, y: 0 };
 let cubeVelocity = { x: 0, y: 0 };
 let cubeAngularVelocity = { x: 0, y: 0 };
 let cubeAngularAcceleration = { x: 0, y: 0 };
 let lastCubePointer = { x: 0, y: 0, time: 0 };
+
+interface CubeFragment {
+  id: number;
+  originX: number;
+  originY: number;
+  x: number;
+  y: number;
+  rotate: number;
+  size: number;
+}
 
 // ── TOC data from active post view ──
 const { headings: tocHeadings, activeId: tocActiveId, showToc } = useTocState();
@@ -283,6 +295,13 @@ function runCubePhysics(target: HTMLElement) {
 
 function dropSignalCube() {
   isCubeVisible.value = true;
+  cubeFragments.value = [];
+
+  if (cubeFragmentTimer) {
+    clearTimeout(cubeFragmentTimer);
+    cubeFragmentTimer = null;
+  }
+
   stopCubePhysics();
   cubePosition.value = { x: 28, y: 22 };
   cubeVelocity = { x: 120, y: 0 };
@@ -298,6 +317,48 @@ function dropSignalCube() {
       runCubePhysics(target);
     }
   });
+}
+
+function explodeSignalCube() {
+  const fragmentCount = 18;
+  const centerX = cubePosition.value.x + 38;
+  const centerY = cubePosition.value.y + 38;
+
+  stopCubePhysics();
+  isCubeDragging.value = false;
+  isCubeVisible.value = false;
+  cubeVelocity = { x: 0, y: 0 };
+  cubeAngularVelocity = { x: 0, y: 0 };
+  cubeAngularAcceleration = { x: 0, y: 0 };
+
+  cubeFragments.value = Array.from({ length: fragmentCount }, (_, index) => {
+    const angle = (Math.PI * 2 * index) / fragmentCount + Math.random() * 0.34;
+    const distance = 34 + Math.random() * 78;
+
+    return {
+      id: Date.now() + index,
+      originX: centerX,
+      originY: centerY,
+      x: Math.cos(angle) * distance,
+      y: Math.sin(angle) * distance - 18,
+      rotate: -160 + Math.random() * 320,
+      size: 4 + Math.random() * 10,
+    };
+  });
+
+  cubeFragmentTimer = window.setTimeout(() => {
+    cubeFragments.value = [];
+    cubeFragmentTimer = null;
+  }, 720);
+}
+
+function toggleSignalCube() {
+  if (isCubeVisible.value) {
+    explodeSignalCube();
+    return;
+  }
+
+  dropSignalCube();
 }
 
 function startCubeDrag(event: PointerEvent) {
@@ -401,6 +462,12 @@ watch(
   },
 );
 
+watch([leftPanelCollapsed, isLeftPanelHalfCollapsed], ([collapsed, halfCollapsed]) => {
+  if ((collapsed || halfCollapsed) && isCubeVisible.value) {
+    explodeSignalCube();
+  }
+});
+
 function getRouteDisplayLabel(path: string) {
   if (path === "/") {
     return "ROUTES";
@@ -492,6 +559,10 @@ onUnmounted(() => {
 
   stopCubePhysics();
 
+  if (cubeFragmentTimer) {
+    clearTimeout(cubeFragmentTimer);
+  }
+
   if (onlineTimer) {
     clearInterval(onlineTimer);
   }
@@ -546,11 +617,12 @@ onUnmounted(() => {
         >
           <div class="left-panel-shell">
             <button
+              v-if="!leftPanelCollapsed && !isLeftPanelHalfCollapsed"
               class="cube-drop-lever"
               type="button"
-              :aria-pressed="isCubeVisible"
+              :aria-pressed="!isCubeVisible"
               aria-label="投放信号核心方块"
-              @click="dropSignalCube"
+              @click="toggleSignalCube"
             >
               <span class="lever-label">CORE</span>
               <span class="lever-track" aria-hidden="true">
@@ -668,6 +740,20 @@ onUnmounted(() => {
                 <span class="cube-core"></span>
               </span>
             </button>
+            <span
+              v-for="fragment in cubeFragments"
+              :key="fragment.id"
+              class="cube-fragment"
+              :style="{
+                '--fragment-origin-x': fragment.originX + 'px',
+                '--fragment-origin-y': fragment.originY + 'px',
+                '--fragment-x': fragment.x + 'px',
+                '--fragment-y': fragment.y + 'px',
+                '--fragment-rotate': fragment.rotate + 'deg',
+                '--fragment-size': fragment.size + 'px',
+              }"
+              aria-hidden="true"
+            ></span>
           </div>
         </aside>
 
@@ -744,12 +830,13 @@ onUnmounted(() => {
 .cube-drop-lever {
   position: absolute;
   top: 12px;
-  right: 14px;
+  left: 14px;
   z-index: 5;
   display: inline-flex;
+  flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 6px 8px 6px 10px;
+  gap: 6px;
+  padding: 8px 7px 9px;
   border: 1px solid color-mix(in srgb, var(--fui-border-color) 70%, transparent);
   border-radius: 2px;
   background:
@@ -757,8 +844,8 @@ onUnmounted(() => {
     color-mix(in srgb, var(--black) 48%, transparent);
   color: color-mix(in srgb, var(--fui-cyan) 82%, var(--text-muted));
   font-family: var(--font-hud);
-  font-size: 0.55rem;
-  letter-spacing: 0.14em;
+  font-size: 0.5rem;
+  letter-spacing: 0.12em;
   cursor: pointer;
   box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.025),
@@ -780,25 +867,39 @@ onUnmounted(() => {
 .lever-label {
   line-height: 1;
   opacity: 0.76;
+  writing-mode: vertical-rl;
 }
 
 .lever-track {
   position: relative;
   display: block;
-  width: 34px;
-  height: 14px;
+  width: 14px;
+  height: 48px;
   border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
   border-radius: 999px;
   background:
-    linear-gradient(90deg, rgba(64, 224, 208, 0.04), rgba(184, 255, 202, 0.13)),
+    linear-gradient(180deg, rgba(64, 224, 208, 0.16), rgba(184, 255, 202, 0.03)),
     color-mix(in srgb, var(--surface) 70%, transparent);
   box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.36);
 }
 
+.lever-track::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 6px;
+  bottom: 6px;
+  width: 1px;
+  background: linear-gradient(180deg, var(--fui-cyan), transparent 50%, var(--line));
+  opacity: 0.36;
+  transform: translateX(-50%);
+}
+
 .lever-handle {
   position: absolute;
-  left: 2px;
-  top: 50%;
+  left: 50%;
+  top: auto;
+  bottom: 3px;
   width: 10px;
   height: 10px;
   border-radius: 50%;
@@ -806,20 +907,20 @@ onUnmounted(() => {
   box-shadow:
     0 0 8px rgba(184, 255, 202, 0.12),
     inset 0 0 0 1px rgba(255, 255, 255, 0.28);
-  transform: translate3d(0, -50%, 0);
+  transform: translate3d(-50%, -32px, 0);
   transition:
     background 0.2s ease,
     box-shadow 0.2s ease,
     transform 0.2s ease;
 }
 
-.cube-drop-lever[aria-pressed="true"] .lever-handle {
+.cube-drop-lever[aria-pressed="false"] .lever-handle {
   background: var(--fui-cyan);
   box-shadow:
     0 0 10px rgba(64, 224, 208, 0.8),
     0 0 20px rgba(184, 255, 202, 0.26),
     inset 0 0 0 1px rgba(255, 255, 255, 0.4);
-  transform: translate3d(18px, -50%, 0);
+  transform: translate3d(-50%, 0, 0);
 }
 
 .content-panel {
@@ -1201,6 +1302,44 @@ onUnmounted(() => {
 
 .signal-cube-dragger.dragging {
   cursor: grabbing;
+}
+
+.cube-fragment {
+  position: absolute;
+  left: var(--fragment-origin-x);
+  top: var(--fragment-origin-y);
+  z-index: 4;
+  width: var(--fragment-size);
+  height: var(--fragment-size);
+  border: 1px solid color-mix(in srgb, var(--fui-cyan) 90%, transparent);
+  background: rgba(64, 224, 208, 0.1);
+  box-shadow:
+    0 0 10px rgba(64, 224, 208, 0.44),
+    inset 0 0 6px rgba(184, 255, 202, 0.18);
+  pointer-events: none;
+  animation: cube-fragment-burst 0.72s cubic-bezier(0.18, 0.72, 0.24, 1) forwards;
+}
+
+@keyframes cube-fragment-burst {
+  0% {
+    opacity: 1;
+    transform: translate3d(-50%, -50%, 0) rotate(0deg) scale(1);
+  }
+
+  68% {
+    opacity: 0.72;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(
+        calc(var(--fragment-x) - 50%),
+        calc(var(--fragment-y) - 50%),
+        0
+      )
+      rotate(var(--fragment-rotate)) scale(0.22);
+    filter: blur(3px);
+  }
 }
 
 .signal-cube-scene {
