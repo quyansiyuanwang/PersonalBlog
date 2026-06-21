@@ -8,6 +8,11 @@ export interface HeadingItem {
   level: number
 }
 
+interface VisibleChunk {
+  index: number
+  html: string
+}
+
 const props = defineProps<{
   source: string
   assetBase?: string
@@ -15,19 +20,46 @@ const props = defineProps<{
 
 const containerRef = ref<HTMLDivElement | null>(null)
 const renderedCount = ref(0)
+const rangeStart = ref(0)
+const rangeEnd = ref(0)
 const headings = ref<HeadingItem[]>([])
 const htmlCache = ref<string[]>([])
+const chunkHeights = ref<number[]>([])
 
 let idleHandle: number | null = null
 let timeoutHandle: number | null = null
+let scrollAnimationFrame: number | null = null
 let lastPointerMoveAt = 0
 let lastScrollAt = 0
+let activeScrollParent: HTMLElement | Window | null = null
 
-const INITIAL_CHUNK_COUNT = 5
-const CHUNKS_PER_BATCH = 3
-const MAX_CHUNK_LENGTH = 1000
-const POINTER_GRACE_MS = 120
-const SCROLL_GRACE_MS = 120
+const INITIAL_CHUNK_COUNT = 8
+const CHUNKS_PER_BATCH = 4
+const SCROLL_CATCH_UP_BATCH = 12
+const MAX_CHUNK_LENGTH = 900
+const DEFAULT_CHUNK_HEIGHT = 520
+const OVERSCAN_PX = 1800
+const POINTER_GRACE_MS = 100
+const SCROLL_GRACE_MS = 80
+
+const chunks = computed(() => splitMarkdownIntoChunks(props.source))
+const hasRemainingChunks = computed(() => renderedCount.value < chunks.value.length)
+const totalHeight = computed(() => chunkHeights.value.reduce((total, height) => total + height, 0))
+const topSpacerHeight = computed(() => getOffsetForIndex(rangeStart.value))
+const bottomSpacerHeight = computed(() => Math.max(0, totalHeight.value - getOffsetForIndex(rangeEnd.value)))
+const visibleChunks = computed<VisibleChunk[]>(() => {
+  const result: VisibleChunk[] = []
+
+  for (let index = rangeStart.value; index < rangeEnd.value; index += 1) {
+    const html = htmlCache.value[index]
+
+    if (html) {
+      result.push({ index, html })
+    }
+  }
+
+  return result
+})
 
 function splitOversizedChunk(chunk: string) {
   if (chunk.length <= MAX_CHUNK_LENGTH) {
@@ -94,10 +126,6 @@ function splitMarkdownIntoChunks(source: string) {
 
   return sections.flatMap((section) => splitOversizedChunk(section)).filter(Boolean)
 }
-
-const chunks = computed(() => splitMarkdownIntoChunks(props.source))
-const visibleHtmlChunks = computed(() => htmlCache.value.slice(0, renderedCount.value))
-const hasRemainingChunks = computed(() => renderedCount.value < chunks.value.length)
 
 function slugifyHeading(text: string) {
   return text
@@ -168,9 +196,10 @@ function syncHeadings() {
 }
 
 function ensureRenderedChunks(nextCount: number) {
+  const safeCount = Math.min(nextCount, chunks.value.length)
   const nextHtmlCache = htmlCache.value.slice()
 
-  for (let index = htmlCache.value.length; index < nextCount; index += 1) {
+  for (let index = htmlCache.value.length; index < safeCount; index += 1) {
     const chunk = chunks.value[index]
 
     if (chunk) {
@@ -179,6 +208,7 @@ function ensureRenderedChunks(nextCount: number) {
   }
 
   htmlCache.value = nextHtmlCache
+  renderedCount.value = Math.max(renderedCount.value, safeCount)
 }
 
 async function renderMermaid() {
@@ -193,6 +223,7 @@ async function renderMermaid() {
     const mermaid = await import('mermaid')
     mermaid.default.initialize({ startOnLoad: false, theme: 'neutral' })
     await mermaid.default.run({ nodes: Array.from(blocks) })
+    scheduleMeasureVisibleChunks()
   } catch {
     // mermaid failed silently — raw code is still visible
   }
@@ -213,10 +244,136 @@ function prepareImages() {
   el.querySelectorAll<HTMLImageElement>('img.markdown-image:not([data-fallback-ready])').forEach((image) => {
     image.dataset.fallbackReady = 'true'
     image.addEventListener('error', () => replaceMissingImage(image), { once: true })
+    image.addEventListener('load', scheduleMeasureVisibleChunks, { once: true })
 
     if (image.complete && image.naturalWidth === 0) {
       replaceMissingImage(image)
     }
+  })
+}
+
+function findScrollParent(element: HTMLElement) {
+  let current = element.parentElement
+
+  while (current) {
+    const style = window.getComputedStyle(current)
+    const canScroll = /(auto|scroll)/.test(`${style.overflowY}${style.overflow}`)
+
+    if (canScroll && current.scrollHeight > current.clientHeight) {
+      return current
+    }
+
+    current = current.parentElement
+  }
+
+  return null
+}
+
+function getScrollParent() {
+  const container = containerRef.value
+  return container ? findScrollParent(container) : null
+}
+
+function getScrollMetrics() {
+  const scroller = getScrollParent()
+
+  if (scroller) {
+    return {
+      scrollTop: scroller.scrollTop,
+      viewportHeight: scroller.clientHeight,
+    }
+  }
+
+  return {
+    scrollTop: window.scrollY,
+    viewportHeight: window.innerHeight,
+  }
+}
+
+function getOffsetForIndex(index: number) {
+  let offset = 0
+  const max = Math.min(index, chunkHeights.value.length)
+
+  for (let current = 0; current < max; current += 1) {
+    offset += chunkHeights.value[current] ?? DEFAULT_CHUNK_HEIGHT
+  }
+
+  return offset
+}
+
+function findIndexForOffset(offset: number) {
+  let currentOffset = 0
+  const heights = chunkHeights.value
+
+  for (let index = 0; index < renderedCount.value; index += 1) {
+    const nextOffset = currentOffset + (heights[index] ?? DEFAULT_CHUNK_HEIGHT)
+
+    if (nextOffset >= offset) {
+      return index
+    }
+
+    currentOffset = nextOffset
+  }
+
+  return Math.max(0, renderedCount.value - 1)
+}
+
+function updateVisibleRange() {
+  if (renderedCount.value === 0) {
+    rangeStart.value = 0
+    rangeEnd.value = 0
+    return
+  }
+
+  const { scrollTop, viewportHeight } = getScrollMetrics()
+  const start = findIndexForOffset(Math.max(0, scrollTop - OVERSCAN_PX))
+  const end = Math.min(renderedCount.value, findIndexForOffset(scrollTop + viewportHeight + OVERSCAN_PX) + 1)
+
+  rangeStart.value = start
+  rangeEnd.value = Math.max(end, start + 1)
+}
+
+function measureVisibleChunks() {
+  const el = containerRef.value
+  if (!el) return
+
+  const nextHeights = chunkHeights.value.slice()
+  let changed = false
+
+  el.querySelectorAll<HTMLElement>('[data-chunk-index]').forEach((chunk) => {
+    const index = Number(chunk.dataset.chunkIndex)
+    const height = Math.max(1, Math.ceil(chunk.getBoundingClientRect().height))
+
+    if (Number.isFinite(index) && nextHeights[index] !== height) {
+      nextHeights[index] = height
+      changed = true
+    }
+  })
+
+  if (changed) {
+    chunkHeights.value = nextHeights
+    updateVisibleRange()
+  }
+}
+
+function scheduleMeasureVisibleChunks() {
+  if (typeof window === 'undefined') return
+
+  window.requestAnimationFrame(() => {
+    measureVisibleChunks()
+  })
+}
+
+function scheduleVisibleRangeUpdate() {
+  if (scrollAnimationFrame !== null || typeof window === 'undefined') {
+    return
+  }
+
+  scrollAnimationFrame = window.requestAnimationFrame(() => {
+    scrollAnimationFrame = null
+    updateVisibleRange()
+    scheduleMeasureVisibleChunks()
+    maybeRenderAheadForScroll()
   })
 }
 
@@ -241,13 +398,13 @@ function scheduleNextChunk() {
       return
     }
 
-    const nextCount = Math.min(renderedCount.value + CHUNKS_PER_BATCH, chunks.value.length)
-    ensureRenderedChunks(nextCount)
-    renderedCount.value = nextCount
+    ensureRenderedChunks(renderedCount.value + CHUNKS_PER_BATCH)
+    updateVisibleRange()
 
     void nextTick(() => {
       prepareImages()
       void renderMermaid()
+      scheduleMeasureVisibleChunks()
       if (hasRemainingChunks.value) {
         scheduleNextChunk()
       }
@@ -260,14 +417,34 @@ function scheduleNextChunk() {
     idleHandle = idleWindow.requestIdleCallback(() => {
       idleHandle = null
       append()
-    }, { timeout: 180 })
+    }, { timeout: 140 })
     return
   }
 
   timeoutHandle = window.setTimeout(() => {
     timeoutHandle = null
     append()
-  }, 32)
+  }, 24)
+}
+
+function maybeRenderAheadForScroll() {
+  if (!hasRemainingChunks.value) {
+    return
+  }
+
+  const { scrollTop, viewportHeight } = getScrollMetrics()
+  const loadedBottom = getOffsetForIndex(renderedCount.value)
+
+  if (scrollTop + viewportHeight + OVERSCAN_PX > loadedBottom) {
+    ensureRenderedChunks(renderedCount.value + SCROLL_CATCH_UP_BATCH)
+    updateVisibleRange()
+    return
+  }
+
+  if (loadedBottom - (scrollTop + viewportHeight) < OVERSCAN_PX * 1.5) {
+    ensureRenderedChunks(renderedCount.value + CHUNKS_PER_BATCH)
+    updateVisibleRange()
+  }
 }
 
 function notePointerActivity() {
@@ -276,19 +453,43 @@ function notePointerActivity() {
 
 function noteScrollActivity() {
   lastScrollAt = performance.now()
+  scheduleVisibleRangeUpdate()
+}
+
+function bindScrollParent() {
+  const nextScrollParent = getScrollParent() ?? window
+
+  if (activeScrollParent === nextScrollParent) {
+    return
+  }
+
+  if (activeScrollParent) {
+    activeScrollParent.removeEventListener('scroll', noteScrollActivity)
+  }
+
+  activeScrollParent = nextScrollParent
+  activeScrollParent.addEventListener('scroll', noteScrollActivity, { passive: true })
 }
 
 function resetRendering() {
   clearScheduledAppend()
   htmlCache.value = []
+  renderedCount.value = 0
+  rangeStart.value = 0
+  rangeEnd.value = 0
+  chunkHeights.value = chunks.value.map(() => DEFAULT_CHUNK_HEIGHT)
+
   const initialCount = Math.min(chunks.value.length, INITIAL_CHUNK_COUNT)
   ensureRenderedChunks(initialCount)
-  renderedCount.value = initialCount
+  rangeEnd.value = initialCount
   syncHeadings()
 
   void nextTick(() => {
+    bindScrollParent()
+    updateVisibleRange()
     prepareImages()
     void renderMermaid()
+    scheduleMeasureVisibleChunks()
     if (hasRemainingChunks.value) {
       scheduleNextChunk()
     }
@@ -298,39 +499,23 @@ function resetRendering() {
 function ensureHeadingVisible(id: string) {
   const index = chunkHeadings.value.findIndex((items) => items.some((item) => item.id === id))
 
-  if (index < 0 || index < renderedCount.value) {
+  if (index < 0) {
     return
   }
 
   clearScheduledAppend()
-  const nextCount = Math.min(chunks.value.length, index + 1)
-  ensureRenderedChunks(nextCount)
-  renderedCount.value = nextCount
+  ensureRenderedChunks(index + 1)
+  rangeStart.value = Math.max(0, index - 2)
+  rangeEnd.value = Math.min(renderedCount.value, index + 6)
 
   void nextTick(() => {
     prepareImages()
     void renderMermaid()
+    scheduleMeasureVisibleChunks()
     if (hasRemainingChunks.value) {
       scheduleNextChunk()
     }
   })
-}
-
-function findScrollParent(element: HTMLElement) {
-  let current = element.parentElement
-
-  while (current) {
-    const style = window.getComputedStyle(current)
-    const canScroll = /(auto|scroll)/.test(`${style.overflowY}${style.overflow}`)
-
-    if (canScroll && current.scrollHeight > current.clientHeight) {
-      return current
-    }
-
-    current = current.parentElement
-  }
-
-  return null
 }
 
 function scrollToAnchor(id: string) {
@@ -341,7 +526,7 @@ function scrollToAnchor(id: string) {
     return
   }
 
-  const scroller = findScrollParent(container)
+  const scroller = getScrollParent()
 
   if (!scroller) {
     const statusBarHeight = document.querySelector<HTMLElement>('.status-bar')?.offsetHeight ?? 0
@@ -385,14 +570,21 @@ watch([chunks, () => props.assetBase], () => {
 
 if (typeof window !== 'undefined') {
   window.addEventListener('pointermove', notePointerActivity, { passive: true })
-  window.addEventListener('scroll', noteScrollActivity, { passive: true, capture: true })
 }
 
 onBeforeUnmount(() => {
   if (typeof window !== 'undefined') {
     window.removeEventListener('pointermove', notePointerActivity)
-    window.removeEventListener('scroll', noteScrollActivity, { capture: true })
+
+    if (scrollAnimationFrame !== null) {
+      window.cancelAnimationFrame(scrollAnimationFrame)
+    }
   }
+
+  if (activeScrollParent) {
+    activeScrollParent.removeEventListener('scroll', noteScrollActivity)
+  }
+
   clearScheduledAppend()
 })
 
@@ -402,17 +594,22 @@ defineExpose({ headings, ensureHeadingVisible })
 <template>
   <div class="chunked-markdown-renderer">
     <div ref="containerRef" class="markdown-wrapper markdown-body" @click="handleMarkdownClick">
+      <div v-if="topSpacerHeight" class="markdown-spacer" :style="{ height: `${topSpacerHeight}px` }"></div>
+
       <div
-        v-for="(html, index) in visibleHtmlChunks"
-        :key="index"
+        v-for="chunk in visibleChunks"
+        :key="chunk.index"
         class="markdown-chunk"
-        v-html="html"
+        :data-chunk-index="chunk.index"
+        v-html="chunk.html"
       ></div>
+
+      <div v-if="bottomSpacerHeight" class="markdown-spacer" :style="{ height: `${bottomSpacerHeight}px` }"></div>
     </div>
 
     <div v-if="hasRemainingChunks" class="chunk-progress" aria-live="polite">
       <span class="chunk-progress-bar"></span>
-      <span class="chunk-progress-text">Rendering more sections...</span>
+      <span class="chunk-progress-text">Preparing more sections...</span>
     </div>
   </div>
 </template>
@@ -446,9 +643,12 @@ defineExpose({ headings, ensureHeadingVisible })
   color: var(--text-muted);
 }
 
+.markdown-spacer {
+  min-height: 1px;
+  pointer-events: none;
+}
+
 .markdown-chunk {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 520px;
   min-width: 0;
   max-width: 100%;
 }
