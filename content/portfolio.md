@@ -1,6 +1,6 @@
 # 项目展示
 
-## LanFlare
+## [LanFlare](https://github.com/quyansiyuanwang/LanFlare)
 
 > **技术栈：** `Electron` · `Vue` · `WebSocket` · `TCP` · `UDP`
 
@@ -8,7 +8,7 @@
 
 ---
 
-## NDKY-OJSubmitter
+## [NDKY-OJSubmitter](https://github.com/OJSubmitterTeam/OJSubmitter)
 
 > **技术栈：** `Electron` · `TypeScript` · `esbuild` · `OpenAI SDK`
 
@@ -16,7 +16,7 @@
 
 ---
 
-## AppServer
+## [AppServer](https://www.qysyw.cn)
 
 > **技术栈：** `Node.js` · `Express` · `Prisma` · `MySQL` · `Vue`
 
@@ -24,7 +24,7 @@
 
 ---
 
-## zoot-plus-frontend
+## [zoot-plus-frontend](https://zoot.plus)
 
 > **技术栈：** `React` · `TypeScript` · `Vite` · `Jotai` · `SWR`
 

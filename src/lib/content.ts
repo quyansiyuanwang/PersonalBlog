@@ -1,6 +1,6 @@
 import { parseFrontmatter } from './frontmatter'
 import type { Post, PostFrontmatter } from '../types/post'
-import { rawAboutModule, rawPortfolioModule, rawPostModules } from '../generated/content'
+import { rawPageModules, rawPostModules } from '../generated/content'
 
 function normalizeFrontmatter(data: Record<string, unknown>, fallbackTitle: string): PostFrontmatter {
   const title = typeof data.title === 'string' && data.title.trim().length > 0 ? data.title.trim() : fallbackTitle
@@ -59,5 +59,10 @@ export const allPosts = Object.entries(rawPostModules)
   .filter((post) => !post.frontmatter.draft)
   .sort((left, right) => +new Date(right.frontmatter.date) - +new Date(left.frontmatter.date))
 
-export const aboutPage = parseFrontmatter(Object.values(rawAboutModule)[0] ?? '')
-export const portfolioPage = parseFrontmatter(Object.values(rawPortfolioModule)[0] ?? '')
+export const pageContent = Object.fromEntries(
+  Object.entries(rawPageModules).map(([filePath, raw]) => {
+    const slug = filePath.split('/').pop()?.replace(/\.md$/, '') ?? filePath
+
+    return [slug, parseFrontmatter(raw)]
+  }),
+)

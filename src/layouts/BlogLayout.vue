@@ -89,6 +89,13 @@ const navigationItems = [
   { name: "标签", to: "/tags", label: "TAGS", jump: true, hide: false },
   { name: "关于", to: "/about", label: "ABOUT", jump: true, hide: false },
   {
+    name: "作品",
+    to: "/portfolio",
+    label: "PORTFOLIO",
+    jump: true,
+    hide: false,
+  },
+  {
     name: "返回",
     to: "/back",
     label: "BACK",
@@ -590,7 +597,11 @@ function startCubeDrag(event: PointerEvent) {
   };
   cubeVelocity = { x: 0, y: 0 };
   cubeAngularAcceleration = { x: 0, y: 0 };
-  lastCubePointer = { x: event.clientX, y: event.clientY, time: performance.now() };
+  lastCubePointer = {
+    x: event.clientX,
+    y: event.clientY,
+    time: performance.now(),
+  };
 
   isCubeDragging.value = true;
   target.setPointerCapture(event.pointerId);
@@ -649,49 +660,49 @@ watch(
   },
 );
 
+watch(isPostRoute, (shouldHalfCollapse) => {
+  isLeftPanelHalfCollapsed.value = shouldHalfCollapse;
+
+  if (shouldHalfCollapse) {
+    playerExpanded.value = false;
+  }
+
+  if (leftPanelCollapsed.value) {
+    return;
+  }
+
+  const shellMain = shellMainRef.value;
+  if (!shellMain) {
+    return;
+  }
+
+  const shellWidth = shellMain.getBoundingClientRect().width;
+  const targetWidth = shouldHalfCollapse
+    ? getHalfCollapsedLeftWidth(shellWidth)
+    : getExpandedLeftWidth(shellWidth);
+
+  animateLeftPanelTo(targetWidth);
+
+  const panelShell = leftPanelShellRef.value;
+  const panel = panelShell?.parentElement;
+  if (panel) {
+    const panelHeight = panel.getBoundingClientRect().height;
+    const targetHeight = shouldHalfCollapse
+      ? getExpandedPostLeftHeight(panelHeight)
+      : getExpandedLeftHeight(panelHeight);
+
+    animateLeftPanelHeightTo(targetHeight);
+  }
+});
+
 watch(
-  isPostRoute,
-  (shouldHalfCollapse) => {
-    isLeftPanelHalfCollapsed.value = shouldHalfCollapse;
-
-    if (shouldHalfCollapse) {
-      playerExpanded.value = false;
-    }
-
-    if (leftPanelCollapsed.value) {
-      return;
-    }
-
-    const shellMain = shellMainRef.value;
-    if (!shellMain) {
-      return;
-    }
-
-    const shellWidth = shellMain.getBoundingClientRect().width;
-    const targetWidth = shouldHalfCollapse
-      ? getHalfCollapsedLeftWidth(shellWidth)
-      : getExpandedLeftWidth(shellWidth);
-
-    animateLeftPanelTo(targetWidth);
-
-    const panelShell = leftPanelShellRef.value;
-    const panel = panelShell?.parentElement;
-    if (panel) {
-      const panelHeight = panel.getBoundingClientRect().height;
-      const targetHeight = shouldHalfCollapse
-        ? getExpandedPostLeftHeight(panelHeight)
-        : getExpandedLeftHeight(panelHeight);
-
-      animateLeftPanelHeightTo(targetHeight);
+  [leftPanelCollapsed, isLeftPanelHalfCollapsed],
+  ([collapsed, halfCollapsed]) => {
+    if ((collapsed || halfCollapsed) && isCubeVisible.value) {
+      explodeSignalCube();
     }
   },
 );
-
-watch([leftPanelCollapsed, isLeftPanelHalfCollapsed], ([collapsed, halfCollapsed]) => {
-  if ((collapsed || halfCollapsed) && isCubeVisible.value) {
-    explodeSignalCube();
-  }
-});
 
 function getRouteDisplayLabel(path: string) {
   if (path === "/") {
@@ -1015,7 +1026,9 @@ onUnmounted(() => {
                     {{ log }}
                   </span>
                 </div>
-                <p class="signal-braille" aria-hidden="true">{{ brailleLine }}</p>
+                <p class="signal-braille" aria-hidden="true">
+                  {{ brailleLine }}
+                </p>
               </div>
               <div class="signal-console-side" aria-hidden="true">
                 <div class="signal-wave">
@@ -1049,7 +1062,11 @@ onUnmounted(() => {
                   {{ getRouteDisplayLabel(route.path) }}
                 </p>
               </div>
-              <form class="route-search" role="search" @submit.prevent="submitRouteSearch">
+              <form
+                class="route-search"
+                role="search"
+                @submit.prevent="submitRouteSearch"
+              >
                 <span class="route-search-prefix">SEARCH</span>
                 <input
                   v-model="routeSearchQuery"
@@ -1062,7 +1079,10 @@ onUnmounted(() => {
                   @blur="routeSearchFocused = false"
                 />
                 <Transition name="route-search-pop">
-                  <div v-if="showRouteSearchResults" class="route-search-results">
+                  <div
+                    v-if="showRouteSearchResults"
+                    class="route-search-results"
+                  >
                     <button
                       v-for="(item, index) in routeSearchResults"
                       :key="item.to"
@@ -1074,7 +1094,10 @@ onUnmounted(() => {
                       <strong>{{ item.title }}</strong>
                       <small>{{ item.subtitle }}</small>
                     </button>
-                    <p v-if="routeSearchResults.length === 0" class="route-search-empty">
+                    <p
+                      v-if="routeSearchResults.length === 0"
+                      class="route-search-empty"
+                    >
                       NO SIGNAL
                     </p>
                   </div>
@@ -1321,7 +1344,11 @@ onUnmounted(() => {
   border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
   border-radius: 999px;
   background:
-    linear-gradient(180deg, rgba(64, 224, 208, 0.16), rgba(184, 255, 202, 0.03)),
+    linear-gradient(
+      180deg,
+      rgba(64, 224, 208, 0.16),
+      rgba(184, 255, 202, 0.03)
+    ),
     color-mix(in srgb, var(--surface) 70%, transparent);
   box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.36);
 }
@@ -1333,7 +1360,12 @@ onUnmounted(() => {
   top: 6px;
   bottom: 6px;
   width: 1px;
-  background: linear-gradient(180deg, var(--fui-cyan), transparent 50%, var(--line));
+  background: linear-gradient(
+    180deg,
+    var(--fui-cyan),
+    transparent 50%,
+    var(--line)
+  );
   opacity: 0.36;
   transform: translateX(-50%);
 }
@@ -1777,7 +1809,11 @@ onUnmounted(() => {
   content: "";
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at 12% 100%, rgba(184, 255, 202, 0.08), transparent 46%);
+  background: radial-gradient(
+    circle at 12% 100%,
+    rgba(184, 255, 202, 0.08),
+    transparent 46%
+  );
   pointer-events: none;
 }
 
@@ -1871,7 +1907,11 @@ onUnmounted(() => {
   flex: 1;
   min-width: 2px;
   height: var(--bar-height);
-  background: linear-gradient(180deg, var(--fui-cyan), rgba(184, 255, 202, 0.08));
+  background: linear-gradient(
+    180deg,
+    var(--fui-cyan),
+    rgba(184, 255, 202, 0.08)
+  );
   box-shadow: 0 0 8px rgba(64, 224, 208, 0.18);
   opacity: 0.42;
   transform-origin: bottom;
@@ -1890,7 +1930,13 @@ onUnmounted(() => {
   line-height: 1;
   white-space: nowrap;
   opacity: 0.34;
-  mask-image: linear-gradient(90deg, transparent, #000 12%, #000 82%, transparent);
+  mask-image: linear-gradient(
+    90deg,
+    transparent,
+    #000 12%,
+    #000 82%,
+    transparent
+  );
   animation: signal-braille-drift 6.8s ease-in-out infinite;
 }
 
@@ -2011,7 +2057,8 @@ onUnmounted(() => {
     0 0 10px rgba(64, 224, 208, 0.44),
     inset 0 0 6px rgba(184, 255, 202, 0.18);
   pointer-events: none;
-  animation: cube-fragment-burst 0.72s cubic-bezier(0.18, 0.72, 0.24, 1) forwards;
+  animation: cube-fragment-burst 0.72s cubic-bezier(0.18, 0.72, 0.24, 1)
+    forwards;
 }
 
 @keyframes cube-fragment-burst {
@@ -2053,7 +2100,11 @@ onUnmounted(() => {
   inset: auto 14px 3px;
   height: 8px;
   border-radius: 50%;
-  background: radial-gradient(ellipse, rgba(64, 224, 208, 0.2), transparent 70%);
+  background: radial-gradient(
+    ellipse,
+    rgba(64, 224, 208, 0.2),
+    transparent 70%
+  );
   filter: blur(2px);
 }
 
@@ -2108,7 +2159,12 @@ onUnmounted(() => {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: radial-gradient(circle, #ffffff 0 12%, var(--fui-cyan) 32%, transparent 72%);
+  background: radial-gradient(
+    circle,
+    #ffffff 0 12%,
+    var(--fui-cyan) 32%,
+    transparent 72%
+  );
   box-shadow:
     0 0 10px rgba(255, 255, 255, 0.5),
     0 0 24px rgba(64, 224, 208, 0.82),
