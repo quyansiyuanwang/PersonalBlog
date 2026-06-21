@@ -37,10 +37,12 @@ onUnmounted(() => {
 <template>
   <article v-if="post" class="post-detail page-stack" :ref="observe">
     <header class="article-header reveal">
-      <p class="eyebrow"><span class="path-sep">></span> ESSAY <span class="path-sep">://</span> {{ post.slug }}</p>
+      <div class="article-headline-row">
+        <p class="eyebrow"><span class="path-sep">></span> ESSAY <span class="path-sep">://</span> {{ post.slug }}</p>
+        <PostMeta :post="post" class="article-meta-top" />
+      </div>
       <h1>{{ post.frontmatter.title }}</h1>
       <p class="article-summary">{{ post.frontmatter.summary }}</p>
-      <PostMeta :post="post" />
       <div v-if="post.frontmatter.tags.length" class="tag-row">
         <RouterLink v-for="tag in post.frontmatter.tags" :key="tag" class="tag-link" :to="`/tags/${encodeURIComponent(tag)}`">
           # {{ tag }}
@@ -71,3 +73,22 @@ onUnmounted(() => {
     </template>
   </el-result>
 </template>
+
+<style scoped>
+.article-headline-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.article-meta-top {
+  flex-shrink: 0;
+}
+
+@media (max-width: 720px) {
+  .article-headline-row {
+    flex-direction: column;
+  }
+}
+</style>

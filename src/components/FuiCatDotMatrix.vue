@@ -17,8 +17,8 @@ interface Repulsor {
   force: number
 }
 
-const SAMPLE_COLS = 90
-const SAMPLE_ROWS = 90
+const SAMPLE_COLS = 66
+const SAMPLE_ROWS = 66
 const EDGE_ALPHA_THRESHOLD = 36
 const EDGE_COLOR_THRESHOLD = 42
 const DOT_COLOR = 'rgba(150, 150, 150, 0.82)'

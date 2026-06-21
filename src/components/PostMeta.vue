@@ -17,7 +17,5 @@ function formatDate(value: string) {
     <span>{{ formatDate(post.frontmatter.date) }}</span>
     <span class="path-sep">//</span>
     <span>{{ post.readingTime }} MIN</span>
-    <span v-if="post.frontmatter.tags.length" class="path-sep">//</span>
-    <span v-if="post.frontmatter.tags.length" class="tag-list">{{ post.frontmatter.tags.join(' #') }}</span>
   </div>
 </template>

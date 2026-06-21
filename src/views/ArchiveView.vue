@@ -25,6 +25,13 @@ const { observe } = useScrollReveal()
             <div>
               <h2>{{ post.frontmatter.title }}</h2>
               <p>{{ post.frontmatter.summary }}</p>
+              <div v-if="post.frontmatter.tags.length" class="tag-row archive-tag-row">
+                <span
+                  v-for="tag in post.frontmatter.tags"
+                  :key="tag"
+                  class="tag-link static-tag"
+                ># {{ tag }}</span>
+              </div>
             </div>
             <PostMeta :post="post" compact />
           </RouterLink>
@@ -91,9 +98,18 @@ const { observe } = useScrollReveal()
   font-size: 0.85rem;
 }
 
+.archive-tag-row {
+  margin-top: 10px;
+}
+
 @media (max-width: 820px) {
   .archive-group {
     grid-template-columns: 1fr;
+  }
+
+  .archive-item {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .archive-item :deep(h2) {
