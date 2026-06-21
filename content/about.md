@@ -2,12 +2,6 @@
 
 曲言，宁波大学科学技术学院软件工程在读（2028 届），目前在浙江。
 
-曾在 [MaaAssistantArknights](https://github.com/MaaAssistantArknights/MaaAssistantArknights)（20k+ Stars）担任 Core Developer，负责工具链重构与缺陷修复。
-
-## 求职意向
-
-前端 / 后端 / 全栈开发工程师（杭州及周边）
-
 ## 技术能力
 
 ### AI 工程
@@ -47,7 +41,7 @@
 
 ### AppServer（全栈业务系统）
 
-2024.11 — 2026.02 | Vue · Pinia · Zod · OpenAPI Client · Express · Prisma · JWT · RBAC
+2024.11 — 至今 | Vue · Pinia · Zod · OpenAPI Client · Express · Prisma · JWT · RBAC
 
 通过 TSOA 生成 OpenAPI 与路由定义，前端接入 OpenAPI Client + Zod 建立契约驱动联调。多角色权限矩阵下实现 RBAC 校验链路，双令牌刷新与幂等刷新策略保证登录态连续性。
 
@@ -70,5 +64,6 @@ Vue · TypeScript · Electron · React · AI Agent · MCP · Skill 封装 · Sub
 
 ## 联系
 
+- WeChat: quyansiyuanwang
 - Email: [quyansiyuanwang@qq.com](mailto:quyansiyuanwang@qq.com)
 - GitHub: [quyansiyuanwang](https://github.com/quyansiyuanwang)

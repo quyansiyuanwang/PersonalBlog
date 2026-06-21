@@ -34,8 +34,10 @@ const cubePosition = ref({ x: 28, y: 22 });
 const isCubeDragging = ref(false);
 const cubeFragments = ref<CubeFragment[]>([]);
 const shellMainRef = ref<HTMLElement | null>(null);
+const leftPanelShellRef = ref<HTMLElement | null>(null);
 const contentScrollRef = ref<HTMLElement | null>(null);
 let leftPanelAnimationFrame: number | null = null;
+let leftPanelHeightAnimationFrame: number | null = null;
 let cubePhysicsFrame: number | null = null;
 let cubeFragmentTimer: number | null = null;
 let cubeDragOffset = { x: 0, y: 0 };
@@ -43,6 +45,16 @@ let cubeVelocity = { x: 0, y: 0 };
 let cubeAngularVelocity = { x: 0, y: 0 };
 let cubeAngularAcceleration = { x: 0, y: 0 };
 let lastCubePointer = { x: 0, y: 0, time: 0 };
+
+const signalLogs = [
+  "SYNCING POST INDEX",
+  "READER NODE ONLINE",
+  "TAG MAP STABLE",
+  "ARCHIVE CACHE WARM",
+  "AMBIENT BUS IDLE",
+];
+const brailleLine = "⠿⡇⢿⣷⠶⣀⡿⠋⠙⢿⡄⠂⠆⡐⠠⢀⡀⠙⢷⣦⠿⠇";
+const waveBars = [34, 58, 42, 76, 48, 64, 36, 82, 54, 68, 40, 72, 46, 60];
 
 interface CubeFragment {
   id: number;
@@ -90,6 +102,14 @@ function getHalfCollapsedLeftWidth(shellWidth: number) {
 
 function getCollapsedLeftWidth() {
   return 116;
+}
+
+function getExpandedLeftHeight(panelHeight: number) {
+  return Math.round(panelHeight * 0.7);
+}
+
+function getExpandedPostLeftHeight(panelHeight: number) {
+  return panelHeight;
 }
 
 function easeOutQuart(progress: number) {
@@ -143,6 +163,48 @@ function animateLeftPanelTo(targetWidth: number) {
   leftPanelAnimationFrame = requestAnimationFrame(tick);
 }
 
+function getTargetLeftHeight(panelHeight: number) {
+  return isLeftPanelHalfCollapsed.value
+    ? getExpandedPostLeftHeight(panelHeight)
+    : getExpandedLeftHeight(panelHeight);
+}
+
+function animateLeftPanelHeightTo(targetHeight: number) {
+  const shell = leftPanelShellRef.value;
+
+  if (!shell) {
+    return;
+  }
+
+  if (leftPanelHeightAnimationFrame) {
+    cancelAnimationFrame(leftPanelHeightAnimationFrame);
+    leftPanelHeightAnimationFrame = null;
+  }
+
+  const startHeight = shell.getBoundingClientRect().height;
+  const duration = 520;
+  const startedAt = performance.now();
+
+  const tick = (now: number) => {
+    const elapsed = now - startedAt;
+    const progress = Math.min(elapsed / duration, 1);
+    const eased = easeOutQuart(progress);
+    const currentHeight = startHeight + (targetHeight - startHeight) * eased;
+
+    shell.style.height = `${currentHeight}px`;
+
+    if (progress < 1) {
+      leftPanelHeightAnimationFrame = requestAnimationFrame(tick);
+      return;
+    }
+
+    leftPanelHeightAnimationFrame = null;
+    shell.style.height = `${targetHeight}px`;
+  };
+
+  leftPanelHeightAnimationFrame = requestAnimationFrame(tick);
+}
+
 function getComputedLeftRatio(shellMain: HTMLElement) {
   const columns = window.getComputedStyle(shellMain).gridTemplateColumns;
   const leftColumn = Number.parseFloat(columns.split(" ")[0] ?? "0");
@@ -167,6 +229,23 @@ function syncLeftPanelWidth() {
 
   const shellWidth = shellMain.getBoundingClientRect().width;
   shellMain.style.gridTemplateColumns = `${getTargetLeftWidth(shellWidth)}px minmax(0, 1fr)`;
+}
+
+function syncLeftPanelHeight() {
+  const shell = leftPanelShellRef.value;
+  const panel = shell?.parentElement;
+
+  if (!shell || !panel || leftPanelHeightAnimationFrame) {
+    return;
+  }
+
+  const panelHeight = panel.getBoundingClientRect().height;
+  shell.style.height = `${getTargetLeftHeight(panelHeight)}px`;
+}
+
+function syncLeftPanelGeometry() {
+  syncLeftPanelWidth();
+  syncLeftPanelHeight();
 }
 
 function scrollToHeading(id: string) {
@@ -459,6 +538,17 @@ watch(
       : getExpandedLeftWidth(shellWidth);
 
     animateLeftPanelTo(targetWidth);
+
+    const panelShell = leftPanelShellRef.value;
+    const panel = panelShell?.parentElement;
+    if (panel) {
+      const panelHeight = panel.getBoundingClientRect().height;
+      const targetHeight = shouldHalfCollapse
+        ? getExpandedPostLeftHeight(panelHeight)
+        : getExpandedLeftHeight(panelHeight);
+
+      animateLeftPanelHeightTo(targetHeight);
+    }
   },
 );
 
@@ -510,8 +600,8 @@ onMounted(() => {
   if (isPostRoute.value) {
     playerExpanded.value = false;
   }
-  syncLeftPanelWidth();
-  window.addEventListener("resize", syncLeftPanelWidth);
+  syncLeftPanelGeometry();
+  window.addEventListener("resize", syncLeftPanelGeometry);
 
   const items: Particle[] = [];
   for (let i = 0; i < 24; i++) {
@@ -551,10 +641,14 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-  window.removeEventListener("resize", syncLeftPanelWidth);
+  window.removeEventListener("resize", syncLeftPanelGeometry);
 
   if (leftPanelAnimationFrame) {
     cancelAnimationFrame(leftPanelAnimationFrame);
+  }
+
+  if (leftPanelHeightAnimationFrame) {
+    cancelAnimationFrame(leftPanelHeightAnimationFrame);
   }
 
   stopCubePhysics();
@@ -615,7 +709,7 @@ onUnmounted(() => {
           class="left-panel shell-enter-3"
           :class="{ collapsed: leftPanelCollapsed, 'post-panel': isPostRoute }"
         >
-          <div class="left-panel-shell">
+          <div ref="leftPanelShellRef" class="left-panel-shell">
             <button
               v-if="!leftPanelCollapsed && !isLeftPanelHalfCollapsed"
               class="cube-drop-lever"
@@ -755,6 +849,40 @@ onUnmounted(() => {
               aria-hidden="true"
             ></span>
           </div>
+          <section
+            class="signal-console"
+            :class="{ hidden: leftPanelCollapsed || isLeftPanelHalfCollapsed }"
+            aria-label="信号日志装饰窗"
+          >
+            <div class="signal-console-head">
+              <span>SIGNAL LOG</span>
+              <span>LOW BAND</span>
+            </div>
+            <div class="signal-console-body">
+              <div class="signal-log-lines" aria-hidden="true">
+                <span
+                  v-for="(log, index) in signalLogs"
+                  :key="log"
+                  class="signal-log-line"
+                  :style="{ '--log-index': index }"
+                >
+                  {{ log }}
+                </span>
+              </div>
+              <div class="signal-wave" aria-hidden="true">
+                <span
+                  v-for="(bar, index) in waveBars"
+                  :key="index"
+                  class="signal-wave-bar"
+                  :style="{
+                    '--bar-height': bar + '%',
+                    '--bar-delay': index * 0.09 + 's',
+                  }"
+                ></span>
+              </div>
+              <p class="signal-braille" aria-hidden="true">{{ brailleLine }}</p>
+            </div>
+          </section>
         </aside>
 
         <section class="content-panel shell-enter-3">
@@ -936,6 +1064,9 @@ onUnmounted(() => {
 }
 
 .left-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
   min-width: 0;
   min-height: 0;
   width: 100%;
@@ -982,7 +1113,6 @@ onUnmounted(() => {
 }
 
 .left-panel.post-panel .left-panel-shell {
-  height: 100%;
   min-height: 0;
   padding-block: 18px;
 }
@@ -1279,6 +1409,207 @@ onUnmounted(() => {
     max-height 0.46s ease,
     padding 0.46s ease,
     border-width 0.46s ease;
+}
+
+.signal-console {
+  position: relative;
+  display: grid;
+  gap: 9px;
+  width: min(360px, calc(100% - 18px));
+  margin: 0 0 0 6px;
+  padding: 11px 12px 10px;
+  border: 1px solid color-mix(in srgb, var(--line) 68%, transparent);
+  border-radius: 2px;
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, rgba(64, 224, 208, 0.08), transparent 42%),
+    repeating-linear-gradient(
+      0deg,
+      transparent 0 7px,
+      rgba(184, 255, 202, 0.018) 8px
+    ),
+    color-mix(in srgb, var(--black) 32%, transparent);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.018),
+    inset 0 -18px 42px rgba(64, 224, 208, 0.025);
+  opacity: 0.86;
+  transform: translate3d(0, 0, 0);
+  transition:
+    opacity 0.46s ease,
+    transform 0.46s ease,
+    max-height 0.46s ease,
+    padding 0.46s ease,
+    border-width 0.46s ease;
+}
+
+.signal-console::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(64, 224, 208, 0.12) 48%,
+    transparent 100%
+  );
+  opacity: 0.32;
+  transform: translateY(-100%);
+  animation: signal-console-scan 5.6s linear infinite;
+  pointer-events: none;
+}
+
+.signal-console::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 12% 100%, rgba(184, 255, 202, 0.08), transparent 46%);
+  pointer-events: none;
+}
+
+.signal-console.hidden,
+.left-panel.collapsed .signal-console {
+  max-height: 0;
+  margin-top: -14px;
+  padding-top: 0;
+  padding-bottom: 0;
+  opacity: 0;
+  transform: translate3d(-18px, 10px, 0) scale(0.96);
+  pointer-events: none;
+  border-width: 0;
+}
+
+.signal-console-head {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-family: var(--font-hud);
+  font-size: 0.52rem;
+  letter-spacing: 0.16em;
+  color: color-mix(in srgb, var(--fui-cyan) 72%, var(--text-muted));
+  text-transform: uppercase;
+}
+
+.signal-console-head span:last-child {
+  color: var(--text-muted);
+  opacity: 0.48;
+}
+
+.signal-console-body {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 8px;
+}
+
+.signal-log-lines {
+  display: grid;
+  gap: 2px;
+  min-height: 54px;
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.signal-log-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  opacity: calc(0.32 + var(--log-index) * 0.08);
+  animation: signal-log-flicker 4.8s ease-in-out infinite;
+  animation-delay: calc(var(--log-index) * 0.28s);
+}
+
+.signal-log-line::before {
+  content: "//";
+  color: var(--fui-cyan);
+  opacity: 0.58;
+}
+
+.signal-wave {
+  display: flex;
+  align-items: end;
+  gap: 4px;
+  height: 28px;
+  padding: 2px 0 0;
+  border-top: 1px solid color-mix(in srgb, var(--line) 46%, transparent);
+}
+
+.signal-wave-bar {
+  flex: 1;
+  min-width: 2px;
+  height: var(--bar-height);
+  background: linear-gradient(180deg, var(--fui-cyan), rgba(184, 255, 202, 0.08));
+  box-shadow: 0 0 8px rgba(64, 224, 208, 0.18);
+  opacity: 0.42;
+  transform-origin: bottom;
+  animation: signal-wave-pulse 1.55s ease-in-out infinite;
+  animation-delay: var(--bar-delay);
+}
+
+.signal-braille {
+  margin: 0;
+  max-width: 100%;
+  overflow: hidden;
+  color: color-mix(in srgb, var(--fui-cyan) 58%, var(--text-muted));
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  line-height: 1;
+  white-space: nowrap;
+  opacity: 0.34;
+  mask-image: linear-gradient(90deg, transparent, #000 12%, #000 82%, transparent);
+  animation: signal-braille-drift 6.8s ease-in-out infinite;
+}
+
+@keyframes signal-console-scan {
+  0% {
+    transform: translateY(-100%);
+  }
+
+  100% {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes signal-log-flicker {
+  0%,
+  100% {
+    color: var(--text-muted);
+  }
+
+  45% {
+    color: color-mix(in srgb, var(--fui-cyan) 72%, var(--text-muted));
+  }
+}
+
+@keyframes signal-wave-pulse {
+  0%,
+  100% {
+    transform: scaleY(0.68);
+    opacity: 0.24;
+  }
+
+  50% {
+    transform: scaleY(1.08);
+    opacity: 0.62;
+  }
+}
+
+@keyframes signal-braille-drift {
+  0%,
+  100% {
+    transform: translateX(-2px);
+    opacity: 0.24;
+  }
+
+  50% {
+    transform: translateX(5px);
+    opacity: 0.44;
+  }
 }
 
 .signal-cube-dragger {
@@ -1920,6 +2251,10 @@ onUnmounted(() => {
   }
 
   .diagonal-rail {
+    display: none;
+  }
+
+  .signal-console {
     display: none;
   }
 
