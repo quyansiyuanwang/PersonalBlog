@@ -2287,9 +2287,6 @@ onUnmounted(() => {
   padding: 0;
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.5);
   pointer-events: auto;
-  transition:
-    background 0.25s ease,
-    border-radius 0.3s ease;
   font-size: 0.6rem;
   opacity: 0.7;
 }
@@ -2306,7 +2303,7 @@ onUnmounted(() => {
 
 .floating-player.collapsed .player-ear {
   border-left: 1px solid var(--fui-border-color);
-  border-radius: 10px;
+  border-radius: 0 10px 10px 0;
 }
 
 @media (max-width: 820px) {
