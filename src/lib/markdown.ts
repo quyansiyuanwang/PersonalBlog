@@ -94,7 +94,7 @@ mdAny.renderer.rules.fence = (tokens: any[], idx: number, options: any, env: any
 }
 
 markdown.use(anchor, {
-  level: [2, 3],
+  level: [1, 2, 3, 4, 5, 6],
   slugify(text: string) {
     return text
       .toLowerCase()

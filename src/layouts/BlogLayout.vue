@@ -1800,8 +1800,7 @@ onUnmounted(() => {
   padding: 0;
   display: grid;
   gap: 1px;
-  overflow: hidden;
-  animation: toc-list-reveal 0.5s 0.28s cubic-bezier(0.2, 0.85, 0.24, 1) both;
+  animation: toc-list-reveal 0.36s 0.24s ease both;
 }
 
 .toc-item {
@@ -1901,13 +1900,13 @@ onUnmounted(() => {
 
 @keyframes toc-list-reveal {
   from {
-    max-height: 0;
     opacity: 0;
+    transform: translate3d(-8px, 0, 0);
   }
 
   to {
-    max-height: 620px;
     opacity: 1;
+    transform: translate3d(0, 0, 0);
   }
 }
 
@@ -1941,6 +1940,14 @@ onUnmounted(() => {
 .toc-level-3 .toc-link {
   padding-left: 14px;
   font-size: 0.72rem;
+}
+
+.toc-level-4 .toc-link,
+.toc-level-5 .toc-link,
+.toc-level-6 .toc-link {
+  padding-left: 24px;
+  font-size: 0.68rem;
+  opacity: 0.82;
 }
 
 .toc::-webkit-scrollbar {
