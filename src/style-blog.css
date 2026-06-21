@@ -159,9 +159,12 @@ img {
   align-items: center;
   justify-content: space-between;
   width: 100%;
+  height: 32px;
   padding: 6px 20px;
+  overflow: hidden;
   font-family: var(--font-mono);
   font-size: 0.72rem;
+  line-height: 1;
   letter-spacing: 0.06em;
   background: var(--status-bar-bg);
   border-bottom: 1px solid var(--accent-soft);
@@ -174,7 +177,25 @@ img {
 .status-bar-section {
   display: flex;
   align-items: center;
+  min-width: 0;
   gap: 12px;
+}
+
+.status-bar-dynamic {
+  flex: 1 1 auto;
+  justify-content: flex-end;
+  overflow: hidden;
+}
+
+.status-bar-subtitle {
+  display: block;
+  flex: 0 1 38ch;
+  min-width: 10ch;
+  max-width: clamp(16ch, 36vw, 42ch);
+  overflow: hidden;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .status-bar-dot {
@@ -328,7 +349,9 @@ img {
 .theme-toggle {
   display: inline-flex;
   align-items: center;
+  flex: 0 0 auto;
   gap: 8px;
+  min-height: 24px;
   padding: 4px 10px;
   border: 1px solid var(--line);
   border-radius: 20px;
@@ -1571,26 +1594,63 @@ body::before {
 }
 
 /* ── Responsive ── */
-@media (max-width: 1100px) {
+@media (max-width: 1280px) {
+  html {
+    min-height: 100%;
+  }
+
   body {
+    min-height: 100dvh;
     overflow: auto;
   }
 
   #app {
     height: auto;
+    min-height: 100dvh;
   }
 
   .shell {
+    min-height: calc(100dvh - 72px);
     height: auto;
     overflow: visible;
   }
 
 }
 
+@media (max-width: 1100px) {
+  .section-heading.split,
+  .hero-panel,
+  .left-panel-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-copy {
+    border-right: 0;
+    border-bottom: 1px solid var(--accent-soft);
+  }
+
+  .route-feature-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .route-feature-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .home-landing-entry {
+    grid-template-columns: 1fr auto;
+  }
+
+  .home-landing-entry span {
+    grid-column: 1 / -1;
+  }
+}
+
 @media (max-width: 820px) {
   .shell {
     width: 100%;
-    margin: 48px auto 16px;
+    margin: 44px auto 16px;
     padding: 0;
     border-radius: 0;
   }
@@ -1600,13 +1660,106 @@ body::before {
   }
 
   .shell-header {
-    padding: 16px 18px;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px 16px;
     align-items: flex-start;
+  }
+
+  .brand {
+    gap: 10px;
+    min-width: 0;
+  }
+
+  .brand-mark {
+    font-size: 1.22rem;
+  }
+
+  .brand-title {
+    font-size: 0.95rem;
+    line-height: 1.2;
+  }
+
+  .brand-subtitle {
+    font-size: 0.62rem;
+    letter-spacing: 0.04em;
+  }
+
+  .shell-header .theme-toggle {
+    width: 100%;
+    justify-content: space-between;
+    min-height: 36px;
   }
 
   .section-heading.split,
   .hero-panel {
     grid-template-columns: 1fr;
+  }
+
+  .page-stack {
+    gap: 22px;
+  }
+
+  .home-landing {
+    gap: 22px;
+    min-height: auto;
+    padding: 24px 18px;
+  }
+
+  .home-landing-kicker {
+    flex-wrap: wrap;
+    font-size: 0.62rem;
+  }
+
+  .home-landing-copy h1 {
+    font-size: clamp(2.25rem, 14vw, 4rem);
+    line-height: 1.04;
+  }
+
+  .home-landing-entry {
+    grid-template-columns: 1fr auto;
+    gap: 10px 14px;
+    padding: 15px 16px;
+  }
+
+  .home-landing-entry span {
+    grid-column: 1 / -1;
+  }
+
+  .home-nav-deck {
+    min-height: auto;
+    overflow: visible;
+  }
+
+  .home-nav-status {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .home-nav-card {
+    min-height: 180px;
+    padding: 18px 16px;
+  }
+
+  .home-nav-copy strong,
+  .home-nav-index {
+    writing-mode: horizontal-tb;
+  }
+
+  .route-feature-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .route-feature-card {
+    min-height: 150px;
+    padding: 18px;
+  }
+
+  .route-feature-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 16px;
   }
 
   .left-panel-grid {
@@ -1623,8 +1776,7 @@ body::before {
   }
 
   .home-intro-panel {
-    padding-left: 0;
-    padding-right: 0;
+    padding: 18px;
   }
 
   .hero-copy h1,
@@ -1636,9 +1788,94 @@ body::before {
     font-size: 1.3rem;
   }
 
+  .post-link {
+    padding: 17px 16px;
+  }
+
+  .post-card-topline,
+  .post-footer,
+  .catalogue-item {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .article-header {
+    gap: 10px;
+    padding-bottom: 16px;
+  }
+
+  .markdown-wrapper {
+    padding-top: 4px;
+  }
+
+  .markdown-body h1,
+  .markdown-body h2 {
+    letter-spacing: 0.05em;
+  }
+
+  .markdown-body h2 {
+    margin-top: 1.45em !important;
+  }
+
+  .markdown-body p,
+  .markdown-body li,
+  .markdown-body blockquote {
+    line-height: 1.82;
+  }
+
+  .markdown-body pre {
+    margin-left: -2px;
+    margin-right: -2px;
+    padding: 14px;
+    border-radius: 6px;
+  }
+
+  .markdown-body pre code {
+    font-size: 0.76rem;
+  }
+
+  .markdown-body table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
   .status-bar {
-    font-size: 0.85rem;
-    padding: 4px 10px;
+    height: 30px;
+    gap: 8px;
+    justify-content: flex-end;
+    padding: 5px 10px;
+    font-size: 0.62rem;
+    letter-spacing: 0.03em;
+    overflow: hidden;
+  }
+
+  .status-bar-section {
+    min-width: 0;
+    gap: 7px;
+  }
+
+  .status-bar-section:first-child {
+    flex: 0 1 auto;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  .status-bar-dynamic {
+    flex: 1 1 100%;
+    justify-content: flex-end;
+    width: 100%;
+    gap: 7px;
+  }
+
+  .status-bar-subtitle {
+    flex: 1 1 auto;
+    max-width: none;
+  }
+
+  .status-bar-id {
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .status-bar-section.gap\2b {
@@ -1647,5 +1884,52 @@ body::before {
 
   .scroll-counter {
     display: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .shell {
+    margin-top: 40px;
+    border-left: 0;
+    border-right: 0;
+  }
+
+  .shell::after {
+    display: none;
+  }
+
+  .shell-header {
+    padding: 12px;
+  }
+
+  .home-landing,
+  .home-intro-panel,
+  .catalogue-block {
+    padding: 16px 14px;
+  }
+
+  .hero-copy,
+  .hero-note {
+    padding: 18px 14px;
+  }
+
+  .hero-meta-row,
+  .post-meta {
+    gap: 8px 10px;
+    font-size: 0.7rem;
+  }
+
+  .route-feature-card h2 {
+    font-size: 1.35rem;
+  }
+
+  .markdown-body {
+    font-size: 0.95rem;
+  }
+}
+
+@media (pointer: coarse) {
+  .home-nav-cards {
+    cursor: default;
   }
 }

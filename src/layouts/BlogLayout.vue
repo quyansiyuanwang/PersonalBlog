@@ -47,6 +47,7 @@ const leftPanelShellRef = ref<HTMLElement | null>(null);
 const contentScrollRef = ref<HTMLElement | null>(null);
 const routeSearchQuery = ref("");
 const routeSearchFocused = ref(false);
+const isDesktop = ref(true);
 let leftPanelAnimationFrame: number | null = null;
 let leftPanelHeightAnimationFrame: number | null = null;
 let cubePhysicsFrame: number | null = null;
@@ -272,10 +273,28 @@ function getTargetLeftWidth(shellWidth: number) {
     : getExpandedLeftWidth(shellWidth);
 }
 
+function shouldUseVerticalShellLayout() {
+  return window.matchMedia("(max-width: 1280px)").matches;
+}
+
+function syncViewportState() {
+  isDesktop.value = !window.matchMedia("(max-width: 820px)").matches;
+}
+
 function animateLeftPanelTo(targetWidth: number) {
   const shellMain = shellMainRef.value;
 
   if (!shellMain) {
+    return;
+  }
+
+  if (shouldUseVerticalShellLayout()) {
+    if (leftPanelAnimationFrame) {
+      cancelAnimationFrame(leftPanelAnimationFrame);
+      leftPanelAnimationFrame = null;
+    }
+
+    shellMain.style.removeProperty("grid-template-columns");
     return;
   }
 
@@ -310,7 +329,7 @@ function animateLeftPanelTo(targetWidth: number) {
 }
 
 function getTargetLeftHeight(panelHeight: number) {
-  return isLeftPanelHalfCollapsed.value
+  return isLeftPanelHalfCollapsed.value && showToc.value
     ? getExpandedPostLeftHeight(panelHeight)
     : getExpandedLeftHeight(panelHeight);
 }
@@ -373,6 +392,11 @@ function syncLeftPanelWidth() {
     return;
   }
 
+  if (shouldUseVerticalShellLayout()) {
+    shellMain.style.removeProperty("grid-template-columns");
+    return;
+  }
+
   const shellWidth = shellMain.getBoundingClientRect().width;
   shellMain.style.gridTemplateColumns = `${getTargetLeftWidth(shellWidth)}px minmax(0, 1fr)`;
 }
@@ -396,9 +420,26 @@ function syncLeftPanelGeometry() {
 
 function scrollToHeading(id: string) {
   const el = document.getElementById(id);
+
+  if (!el) {
+    return;
+  }
+
+  if (shouldUseVerticalShellLayout()) {
+    const statusBarHeight = document.querySelector<HTMLElement>(".status-bar")?.offsetHeight ?? 0;
+    const targetTop = el.getBoundingClientRect().top + window.scrollY - statusBarHeight - 16;
+
+    window.scrollTo({
+      top: Math.max(0, targetTop),
+      behavior: "smooth",
+    });
+
+    return;
+  }
+
   const scroller = contentScrollRef.value;
 
-  if (el && scroller) {
+  if (scroller) {
     const scrollerTop = scroller.getBoundingClientRect().top;
     const targetTop = el.getBoundingClientRect().top;
 
@@ -691,12 +732,26 @@ watch(isPostRoute, (shouldHalfCollapse) => {
   const panel = panelShell?.parentElement;
   if (panel) {
     const panelHeight = panel.getBoundingClientRect().height;
-    const targetHeight = shouldHalfCollapse
+    const targetHeight = shouldHalfCollapse && showToc.value
       ? getExpandedPostLeftHeight(panelHeight)
       : getExpandedLeftHeight(panelHeight);
 
     animateLeftPanelHeightTo(targetHeight);
   }
+});
+
+watch(showToc, () => {
+  if (!isPostRoute.value || leftPanelCollapsed.value) {
+    return;
+  }
+
+  const panelShell = leftPanelShellRef.value;
+  const panel = panelShell?.parentElement;
+  if (!panel) {
+    return;
+  }
+
+  animateLeftPanelHeightTo(getTargetLeftHeight(panel.getBoundingClientRect().height));
 });
 
 watch(
@@ -746,11 +801,13 @@ interface Particle {
 
 const particles = ref<Particle[]>([]);
 onMounted(() => {
+  syncViewportState();
   isLeftPanelHalfCollapsed.value = isPostRoute.value;
   if (isPostRoute.value) {
     playerExpanded.value = false;
   }
   syncLeftPanelGeometry();
+  window.addEventListener("resize", syncViewportState);
   window.addEventListener("resize", syncLeftPanelGeometry);
 
   const items: Particle[] = [];
@@ -791,6 +848,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  window.removeEventListener("resize", syncViewportState);
   window.removeEventListener("resize", syncLeftPanelGeometry);
 
   if (leftPanelAnimationFrame) {
@@ -834,14 +892,14 @@ onUnmounted(() => {
   <CustomCursor />
   <div class="blog-layout-wrapper shell-entered">
     <div class="status-bar shell-enter-1">
-      <div class="status-bar-section">
+      <div v-if="isDesktop" class="status-bar-section">
         <span class="status-bar-dot"></span>
         <span class="status-bar-sep">|</span>
         <span>STATUS <span class="path-sep">://</span> MONITOR</span>
       </div>
-      <div class="status-bar-section">
+      <div class="status-bar-section status-bar-dynamic">
         <span class="status-bar-sep">|</span>
-        <span>{{ subtitle }}</span>
+        <span class="status-bar-subtitle" :title="subtitle">{{ subtitle }}</span>
         <button
           class="theme-toggle"
           type="button"
@@ -867,11 +925,13 @@ onUnmounted(() => {
       >
         <aside
           class="left-panel shell-enter-3"
-          :class="{ collapsed: leftPanelCollapsed, 'post-panel': isPostRoute }"
+          :class="{ collapsed: leftPanelCollapsed, 'post-panel': isPostRoute, 'has-toc': showToc }"
         >
           <div ref="leftPanelShellRef" class="left-panel-shell">
             <div class="left-panel-cat-bg" aria-hidden="true">
-              <FuiCatDotMatrix class="left-panel-cat-bg-inner" />
+              <div class="left-panel-cat-bg-inner">
+                <FuiCatDotMatrix />
+              </div>
             </div>
             <button
               v-if="!leftPanelCollapsed && !isLeftPanelHalfCollapsed"
@@ -916,7 +976,7 @@ onUnmounted(() => {
             <!-- TOC in left panel -->
             <div
               class="left-panel-toc-wrap"
-              :class="{ hidden: leftPanelCollapsed }"
+              :class="{ hidden: leftPanelCollapsed, empty: !showToc }"
             >
               <nav v-if="showToc" class="toc" aria-label="目录">
                 <div class="toc-title-row">
@@ -1435,6 +1495,7 @@ onUnmounted(() => {
 .left-panel.post-panel {
   padding-top: 12px;
   padding-bottom: 12px;
+  overflow: visible;
 }
 
 .left-panel-shell {
@@ -1468,8 +1529,10 @@ onUnmounted(() => {
 }
 
 .left-panel.post-panel .left-panel-shell {
+  height: auto;
   min-height: 0;
   padding-block: 18px;
+  overflow: visible;
 }
 
 .left-panel-cat-bg {
@@ -1486,6 +1549,12 @@ onUnmounted(() => {
 .left-panel-cat-bg-inner {
   position: absolute;
   inset: 0;
+}
+
+.left-panel-cat-bg-inner :deep(.cat-dot-matrix) {
+  inset: 0;
+  width: 100%;
+  height: 100%;
 }
 
 .left-panel-hero {
@@ -1615,7 +1684,7 @@ onUnmounted(() => {
   position: relative;
   z-index: 10;
   flex: 1;
-  min-height: 0;
+  min-height: min(360px, calc(100dvh - 170px));
   min-width: 0;
   width: 100%;
   max-height: 1000px;
@@ -1635,6 +1704,12 @@ onUnmounted(() => {
   opacity: 0;
   transform: translateX(-30px) scale(0.94);
   pointer-events: none;
+}
+
+.left-panel-toc-wrap.empty {
+  flex: 0 0 auto;
+  min-height: 42px;
+  max-height: 42px;
 }
 
 .toc-title-row {
@@ -1657,7 +1732,9 @@ onUnmounted(() => {
 }
 
 .toc {
-  height: 100%;
+  height: auto;
+  max-height: min(620px, calc(100dvh - 190px));
+  min-height: min(320px, calc(100dvh - 210px));
   overflow-y: auto;
   padding: 14px 10px 14px 14px;
   border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
@@ -1760,7 +1837,7 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 100%;
+  min-height: 42px;
   text-align: center;
   font-family: var(--font-mono);
   font-size: 0.72rem;
@@ -2338,8 +2415,19 @@ onUnmounted(() => {
 
 @media (max-width: 820px) {
   .floating-player {
-    --player-left-offset: 12px;
-    bottom: 100px;
+    --player-left-offset: 10px;
+    --player-ear-width: 20px;
+    bottom: 16px;
+    max-width: calc(100vw - 16px);
+    transform: scale(0.78);
+  }
+
+  .floating-player-card {
+    max-width: calc((100vw - 16px) / 0.78 - var(--player-ear-width));
+  }
+
+  .player-ear {
+    height: 128px;
   }
 }
 
@@ -2691,14 +2779,55 @@ onUnmounted(() => {
   }
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 1280px) {
   .shell-main {
     grid-template-columns: 1fr;
     height: auto;
   }
 
+  .shell-main.left-collapsed {
+    grid-template-columns: 1fr;
+  }
+
   .diagonal-rail {
+    position: relative;
+    top: auto;
+    right: auto;
+    order: 2;
+    width: 100%;
+    height: auto;
+    margin-top: -10px;
+    padding: 0 0 2px;
+    z-index: 5;
+  }
+
+  .diagonal-rail .glow-frame,
+  .diagonal-rail .glow-frame-inner {
     display: none;
+  }
+
+  .diagonal-rail-inner {
+    position: relative;
+    top: auto;
+    right: auto;
+    flex-direction: row;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 10px;
+    width: 100%;
+    padding: 2px 2px 10px;
+    overflow-x: auto;
+    transform: none;
+    scroll-snap-type: x proximity;
+  }
+
+  .diagonal-link {
+    flex: 0 0 auto;
+    min-width: 74px;
+    padding: 8px 10px;
+    border: 1px solid color-mix(in srgb, var(--fui-border-color) 60%, transparent);
+    background: color-mix(in srgb, var(--surface) 72%, transparent);
+    scroll-snap-align: start;
   }
 
   .signal-console {
@@ -2736,11 +2865,13 @@ onUnmounted(() => {
 
 @media (max-width: 980px) {
   .shell-main {
-    grid-template-columns: minmax(250px, 32%) minmax(0, 68%);
+    grid-template-columns: 1fr;
+    height: auto;
+    min-height: 0;
   }
 
   .shell-main.left-collapsed {
-    grid-template-columns: 104px minmax(0, 1fr);
+    grid-template-columns: 1fr;
   }
 
   .left-panel {
@@ -2750,10 +2881,12 @@ onUnmounted(() => {
   .left-panel-shell {
     padding: 20px;
     border-radius: 24px;
+    height: auto;
   }
 
   .content-panel {
-    padding-left: 22px;
+    padding: 24px 22px;
+    border-left: 0;
   }
 }
 
@@ -2767,8 +2900,50 @@ onUnmounted(() => {
   }
 
   .left-panel-shell {
+    min-height: 240px;
     padding: 18px;
     border-radius: 18px;
+  }
+
+  .left-panel.post-panel.has-toc .left-panel-shell {
+    min-height: min(460px, 62dvh);
+  }
+
+  .left-panel-toc-wrap {
+    min-height: min(390px, 56dvh);
+  }
+
+  .toc {
+    max-height: min(420px, 54dvh);
+    min-height: min(340px, 48dvh);
+    margin-right: 0;
+  }
+
+  .left-panel-cat-bg {
+    opacity: 0.38;
+  }
+
+  .left-panel-cat-bg-inner {
+    inset: auto;
+    top: 50%;
+    left: 50%;
+    width: min(70vw, 260px);
+    height: min(70vw, 260px);
+    transform: translate(-50%, -50%);
+  }
+
+  .left-panel.collapsed,
+  .left-panel.collapsed .left-panel-shell {
+    width: 100%;
+    align-items: stretch;
+    transform: none;
+  }
+
+  .collapsed-vinyl-button,
+  .signal-console,
+  .signal-cube-dragger,
+  .cube-drop-lever {
+    display: none;
   }
 
   .content-panel {
@@ -2780,10 +2955,74 @@ onUnmounted(() => {
     padding-right: 0;
     align-items: stretch;
     flex-direction: column;
+    gap: 12px;
   }
 
   .route-search {
     width: 100%;
+    min-height: 40px;
+  }
+
+  .route-search-results {
+    left: 0;
+    right: 0;
+    width: 100%;
+    max-height: min(58dvh, 420px);
+    overflow-y: auto;
+    transform-origin: top center;
+  }
+
+  .route-search-result {
+    padding: 10px 11px;
+  }
+}
+
+@media (max-width: 560px) {
+  .left-panel {
+    padding: 12px 12px 0;
+  }
+
+  .left-panel-shell {
+    min-height: 210px;
+    padding: 14px;
+  }
+
+  .left-panel.post-panel.has-toc .left-panel-shell {
+    min-height: min(430px, 60dvh);
+  }
+
+  .left-panel-toc-wrap {
+    min-height: min(360px, 54dvh);
+  }
+
+  .toc {
+    max-height: min(390px, 52dvh);
+    min-height: min(320px, 46dvh);
+  }
+
+  .left-panel-cat-bg {
+    display: block;
+    opacity: 0.3;
+  }
+
+  .left-panel-cat-bg-inner {
+    width: min(62vw, 190px);
+    height: min(62vw, 190px);
+  }
+
+  .content-panel {
+    padding: 16px 12px 96px;
+  }
+
+  .content-panel-head {
+    margin-bottom: 12px;
+  }
+}
+
+@media (pointer: coarse) {
+  .signal-cube-dragger,
+  .cube-drop-lever {
+    display: none;
   }
 }
 </style>

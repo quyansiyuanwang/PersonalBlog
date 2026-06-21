@@ -857,4 +857,99 @@ onBeforeUnmount(() => {
   min-width: 52px;
   background: color-mix(in srgb, var(--fui-cyan) 12%, transparent);
 }
+
+@media (max-width: 820px) {
+  .fui-music-widget {
+    width: min(330px, calc(100vw - 54px));
+    padding: 12px;
+    border-radius: 18px;
+    font-size: 0.68rem;
+  }
+
+  .fui-widget-header {
+    margin-bottom: 4px;
+  }
+
+  .vinyl-stage {
+    width: 190px;
+    height: 190px;
+  }
+
+  .vinyl-record {
+    top: 15px;
+    left: 15px;
+    width: 160px;
+    height: 160px;
+  }
+
+  .ring-1 {
+    inset: 12px;
+  }
+
+  .ring-2 {
+    inset: 28px;
+  }
+
+  .ring-3 {
+    inset: 44px;
+  }
+
+  .vinyl-label {
+    width: 62px;
+    height: 62px;
+    padding: 7px;
+  }
+
+  .tonearm-button {
+    top: 6px;
+    left: 170px;
+    width: 46px;
+    height: 154px;
+  }
+
+  .tonearm-pivot {
+    top: 6px;
+    left: 14px;
+    width: 52px;
+    height: 126px;
+    transform-origin: 10px 10px;
+  }
+
+  .tonearm-base {
+    width: 20px;
+    height: 20px;
+  }
+
+  .tonearm-arm {
+    top: 12px;
+    left: 7px;
+    width: 6px;
+    height: 104px;
+  }
+
+  .fui-track-meta {
+    margin-bottom: 10px;
+  }
+
+  .fui-playlist {
+    gap: 7px;
+    max-height: 132px;
+    margin-bottom: 12px;
+  }
+
+  .fui-playlist-item {
+    padding: 8px 10px;
+    border-radius: 12px;
+  }
+
+  .fui-controls {
+    gap: 7px;
+  }
+
+  .fui-btn {
+    min-width: 38px;
+    height: 32px;
+    font-size: 0.68rem;
+  }
+}
 </style>
