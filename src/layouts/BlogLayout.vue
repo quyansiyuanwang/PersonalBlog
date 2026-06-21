@@ -1772,6 +1772,7 @@ onUnmounted(() => {
     opacity 0.46s ease,
     transform 0.46s ease,
     max-height 0.46s ease;
+  animation: toc-wrap-pop 0.42s cubic-bezier(0.2, 0.85, 0.24, 1) both;
 }
 
 .left-panel-toc-wrap.hidden {
@@ -1796,6 +1797,9 @@ onUnmounted(() => {
   margin-bottom: 12px;
   padding-bottom: 10px;
   border-bottom: 1px solid color-mix(in srgb, var(--line) 58%, transparent);
+  white-space: nowrap;
+  overflow: hidden;
+  animation: toc-title-slide 0.38s cubic-bezier(0.2, 0.85, 0.24, 1) both;
 }
 
 .toc-title-row span {
@@ -1822,6 +1826,8 @@ onUnmounted(() => {
   font-size: 0.76rem;
   line-height: 1.6;
   margin-right: 8%;
+  transform-origin: top left;
+  animation: toc-panel-unfold 0.56s 0.16s cubic-bezier(0.2, 0.85, 0.24, 1) both;
 }
 
 .toc-title {
@@ -1840,10 +1846,39 @@ onUnmounted(() => {
   padding: 0;
   display: grid;
   gap: 1px;
+  overflow: hidden;
+  animation: toc-list-reveal 0.5s 0.28s cubic-bezier(0.2, 0.85, 0.24, 1) both;
 }
 
 .toc-item {
   padding: 0;
+  opacity: 0;
+  transform: translate3d(-12px, -4px, 0);
+  animation: toc-item-in 0.36s cubic-bezier(0.2, 0.85, 0.24, 1) both;
+}
+
+.toc-item:nth-child(1) {
+  animation-delay: 0.34s;
+}
+
+.toc-item:nth-child(2) {
+  animation-delay: 0.38s;
+}
+
+.toc-item:nth-child(3) {
+  animation-delay: 0.42s;
+}
+
+.toc-item:nth-child(4) {
+  animation-delay: 0.46s;
+}
+
+.toc-item:nth-child(5) {
+  animation-delay: 0.5s;
+}
+
+.toc-item:nth-child(n + 6) {
+  animation-delay: 0.54s;
 }
 
 .toc-link {
@@ -1868,6 +1903,65 @@ onUnmounted(() => {
     color-mix(in srgb, var(--accent-soft) 62%, transparent),
     transparent
   );
+}
+
+@keyframes toc-wrap-pop {
+  from {
+    opacity: 0;
+    transform: translate3d(-34px, 0, 0) scaleX(0.86);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scaleX(1);
+  }
+}
+
+@keyframes toc-title-slide {
+  from {
+    opacity: 0;
+    clip-path: inset(0 100% 0 0);
+    transform: translate3d(-16px, 0, 0);
+  }
+
+  to {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes toc-panel-unfold {
+  from {
+    opacity: 0.72;
+    clip-path: inset(0 0 100% 0);
+    transform: scaleY(0.22);
+  }
+
+  to {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+    transform: scaleY(1);
+  }
+}
+
+@keyframes toc-list-reveal {
+  from {
+    max-height: 0;
+    opacity: 0;
+  }
+
+  to {
+    max-height: 620px;
+    opacity: 1;
+  }
+}
+
+@keyframes toc-item-in {
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
 }
 
 .toc-active .toc-link {
