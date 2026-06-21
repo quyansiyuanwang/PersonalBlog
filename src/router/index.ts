@@ -22,7 +22,7 @@ const router = createRouter({
       name: "routes",
       component: loadRoutesView,
       meta: {
-        title: "大路由",
+        title: "导航",
         description: "以 3D 环形导航进入归档、标签、关于与首页模块。",
       },
     },
