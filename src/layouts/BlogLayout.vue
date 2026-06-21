@@ -112,10 +112,10 @@ const navigationItems = [
 const routeSearchItems: RouteSearchItem[] = [
   {
     title: "ROUTES",
-    subtitle: "大路由",
+    subtitle: "",
     description: "以 3D 环形导航进入各个内容模块。",
     to: "/",
-    keywords: "routes 大路由 导航 home route",
+    keywords: "routes 路由 导航 home route",
   },
   {
     title: "HOME",
