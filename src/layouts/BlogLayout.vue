@@ -38,7 +38,11 @@ const isPostRoute = computed(() => route.path.startsWith("/post"));
 const isLeftPanelHalfCollapsed = ref(false);
 const subtitle = useSubtitle();
 const { theme, toggleTheme } = useTheme();
-const { bars: waveBars, stats: signalStats } = useAudioSignal();
+const { stats: signalStats } = useAudioSignal();
+
+const SignalWaveCanvas = defineAsyncComponent(
+  () => import("../components/SignalWaveCanvas.vue"),
+);
 const playerExpanded = ref(true);
 const cubeTiltX = ref(-12);
 const cubeTiltY = ref(18);
@@ -981,20 +985,6 @@ onUnmounted(() => {
               class="left-panel-footer"
               :class="{ hidden: leftPanelCollapsed }"
             >
-              <!-- <div class="side-meter">
-                <span>ACTIVE NODE</span>
-                <strong>{{ activeHeadingText }}</strong>
-              </div>
-              <div class="side-stats">
-                <span>
-                  <strong>{{ tocHeadings.length }}</strong>
-                  <small>章节</small>
-                </span>
-                <span>
-                  <strong>{{ showToc ? "ON" : "IDLE" }}</strong>
-                  <small>目录</small>
-                </span>
-              </div> -->
             </div>
             <button
               v-if="isCubeVisible"
@@ -1067,15 +1057,7 @@ onUnmounted(() => {
               </div>
               <div class="signal-console-side" aria-hidden="true">
                 <div class="signal-wave">
-                  <span
-                    v-for="(bar, index) in waveBars"
-                    :key="index"
-                    class="signal-wave-bar"
-                    :style="{
-                      '--bar-height': bar + '%',
-                      '--bar-delay': index * 0.09 + 's',
-                    }"
-                  ></span>
+                  <SignalWaveCanvas />
                 </div>
                 <div class="signal-stat-grid">
                   <span v-for="stat in signalStats" :key="stat.label">
@@ -2165,27 +2147,9 @@ onUnmounted(() => {
 }
 
 .signal-wave {
-  display: flex;
-  align-items: end;
-  gap: 4px;
+  position: relative;
   height: 28px;
   padding: 0;
-}
-
-.signal-wave-bar {
-  flex: 1;
-  min-width: 2px;
-  height: var(--bar-height);
-  background: linear-gradient(
-    180deg,
-    var(--fui-cyan),
-    rgba(184, 255, 202, 0.08)
-  );
-  box-shadow: 0 0 8px rgba(64, 224, 208, 0.18);
-  opacity: 0.42;
-  transform-origin: bottom;
-  animation: signal-wave-pulse 1.55s ease-in-out infinite;
-  animation-delay: var(--bar-delay);
 }
 
 .signal-braille {
@@ -2264,18 +2228,7 @@ onUnmounted(() => {
   }
 }
 
-@keyframes signal-wave-pulse {
-  0%,
-  100% {
-    transform: scaleY(0.68);
-    opacity: 0.24;
-  }
-
-  50% {
-    transform: scaleY(1.08);
-    opacity: 0.62;
-  }
-}
+/* signal-wave-pulse keyframes removed -- Canvas handles animation */
 
 @keyframes signal-braille-drift {
   0%,

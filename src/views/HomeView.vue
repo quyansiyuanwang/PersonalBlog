@@ -10,11 +10,13 @@ const { observe } = useScrollReveal()
 
 <template>
 	<div class="home-view page-stack" :ref="observe">
-		<PageSectionHeader
-			code="BLOG"
-			title="文章入口"
-			description="从这里进入最近的写作、归档和长期整理的文字记录。"
-		/>
+		<div class="reveal">
+			<PageSectionHeader
+				code="BLOG"
+				title="文章入口"
+				description="从这里进入最近的写作、归档和长期整理的文字记录。"
+			/>
+		</div>
 
 		<PostList :posts="posts" />
 	</div>

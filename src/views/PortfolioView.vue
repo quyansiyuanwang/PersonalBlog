@@ -9,12 +9,16 @@ const { observe } = useScrollReveal()
 
 <template>
   <div class="portfolio-view page-stack" :ref="observe">
-    <PageSectionHeader
-      code="PORTFOLIO"
-      title="作品与实验"
-      description="把已经成型的桌面应用、全栈系统和开源协作项目集中在这里，保留能被继续迭代的真实作品。"
-    />
+    <div class="reveal">
+      <PageSectionHeader
+        code="PORTFOLIO"
+        title="作品与实验"
+        description="把已经成型的桌面应用、全栈系统和开源协作项目集中在这里，保留能被继续迭代的真实作品。"
+      />
+    </div>
 
-    <MarkdownRenderer :source="getPortfolioContent()" />
+    <div class="reveal reveal-stagger-1">
+      <MarkdownRenderer :source="getPortfolioContent()" />
+    </div>
   </div>
 </template>

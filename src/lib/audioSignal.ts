@@ -2,8 +2,13 @@ import { computed, reactive } from 'vue'
 
 export type AudioSignalMode = 'IDLE' | 'LOAD' | 'PLAY' | 'PAUSE' | 'ERROR'
 
-const BAR_COUNT = 14
-const idleBars = [34, 58, 42, 76, 48, 64, 36, 82, 54, 68, 40, 72, 46, 60]
+export const BAR_COUNT = 32
+const idleBars = [
+  34, 58, 42, 76, 48, 64, 36, 82,
+  54, 68, 40, 72, 46, 60, 38, 70,
+  44, 62, 50, 78, 52, 66, 56, 80,
+  48, 64, 42, 74, 46, 58, 54, 68,
+]
 
 const signalState = reactive({
   bars: [...idleBars],

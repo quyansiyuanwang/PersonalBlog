@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {
   computed,
+  nextTick,
   onBeforeUnmount,
   onMounted,
   reactive,
@@ -8,6 +9,7 @@ import {
   watch,
 } from "vue";
 import {
+  BAR_COUNT,
   resetAudioSignalBars,
   setAudioSignalMode,
   updateAudioSignalBars,
@@ -18,6 +20,7 @@ const tracks = musicTracks;
 
 // ── audio element ──
 const audioRef = ref<HTMLAudioElement | null>(null);
+const audioElementKey = ref(0);
 
 // ── reactive UI state ──
 const currentIndex = ref(0);
@@ -112,18 +115,21 @@ function setupAudioAnalyser() {
     audioContext = new AudioContext();
   }
 
-  if (!mediaSourceNode) {
-    mediaSourceNode = audioContext.createMediaElementSource(audio);
+  // Disconnect old nodes if recreating after track switch
+  if (analyserNode) {
+    try { analyserNode.disconnect(); } catch {}
+  }
+  if (mediaSourceNode) {
+    try { mediaSourceNode.disconnect(); } catch {}
   }
 
-  if (!analyserNode) {
-    analyserNode = audioContext.createAnalyser();
-    analyserNode.fftSize = 64;
-    analyserNode.smoothingTimeConstant = 0.72;
-    mediaSourceNode.connect(analyserNode);
-    analyserNode.connect(audioContext.destination);
-    frequencyData = new Uint8Array(analyserNode.frequencyBinCount);
-  }
+  mediaSourceNode = audioContext.createMediaElementSource(audio);
+  analyserNode = audioContext.createAnalyser();
+  analyserNode.fftSize = 256;
+  analyserNode.smoothingTimeConstant = 0.72;
+  mediaSourceNode.connect(analyserNode);
+  analyserNode.connect(audioContext.destination);
+  frequencyData = new Uint8Array(analyserNode.frequencyBinCount);
 
   return analyserNode;
 }
@@ -149,8 +155,8 @@ function readAudioSignal() {
   }
 
   analyserNode.getByteFrequencyData(frequencyData);
-  const bucketSize = Math.max(1, Math.floor(frequencyData.length / 14));
-  const bars = Array.from({ length: 14 }, (_, index) => {
+  const bucketSize = Math.max(1, Math.floor(frequencyData.length / BAR_COUNT));
+  const bars = Array.from({ length: BAR_COUNT }, (_, index) => {
     const start = index * bucketSize;
     return readFrequencyBucket(start, bucketSize);
   });
@@ -208,27 +214,37 @@ function playAudio() {
 
 // ── core: switch track ──
 function loadTrack(idx: number) {
-  const audio = audioRef.value;
-  if (!audio) return;
+  stopAnalyserLoop();
+  resetAudioSignalBars();
+  setAudioSignalMode("LOAD");
 
   const shouldResume = shouldPlayAfterLoad || isPlaying.value;
   shouldPlayAfterLoad = false;
 
-  audio.pause();
-  audio.src = getTrackUrl(idx);
   loadedTrackIdx = idx;
   currentTime.value = 0;
   duration.value = 0;
   isLoading.value = false;
   hasLoadError.value = false;
-  audio.load();
 
-  if (shouldResume) {
-    playAudio();
-  } else {
-    isPlaybackRequested.value = false;
-    setAudioSignalMode("PAUSE");
-  }
+  // Force Vue to remount <audio> element, breaking stale source-node binding
+  audioElementKey.value++;
+
+  void nextTick(() => {
+    const audio = audioRef.value;
+    if (!audio) return;
+
+    audio.pause();
+    audio.src = getTrackUrl(idx);
+    audio.load();
+
+    if (shouldResume) {
+      playAudio();
+    } else {
+      isPlaybackRequested.value = false;
+      setAudioSignalMode("PAUSE");
+    }
+  });
 }
 
 // ── playback ──
@@ -363,6 +379,7 @@ onBeforeUnmount(() => {
   <div class="fui-music-widget" :class="{ playing: isPlaying }">
     <audio
       ref="audioRef"
+      :key="audioElementKey"
       preload="metadata"
       playsinline
       @canplay="handleCanPlay"

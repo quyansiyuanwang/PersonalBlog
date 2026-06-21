@@ -9,12 +9,16 @@ const { observe } = useScrollReveal()
 
 <template>
   <div class="friends-view page-stack" :ref="observe">
-    <PageSectionHeader
-      code="FRIENDS"
-      title="友链中继"
-      description="这里预留给值得长期阅读、互相引用和交换灵感的站点。"
-    />
+    <div class="reveal">
+      <PageSectionHeader
+        code="FRIENDS"
+        title="友链中继"
+        description="这里预留给值得长期阅读、互相引用和交换灵感的站点。"
+      />
+    </div>
 
-    <MarkdownRenderer :source="getPageContent('friends')" />
+    <div class="reveal reveal-stagger-1">
+      <MarkdownRenderer :source="getPageContent('friends')" />
+    </div>
   </div>
 </template>

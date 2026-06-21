@@ -98,12 +98,13 @@ function getRouteCardStyle(index: number) {
 
 <template>
   <div class="home-view home-nav-deck" :ref="observe">
-    <nav
-      class="home-nav-cards"
-      aria-label="大路由导航"
-      :style="{ '--ring-rotation': ringRotation }"
-      @wheel.prevent="handleRouteRingWheel"
-    >
+    <div class="reveal">
+      <nav
+        class="home-nav-cards"
+        aria-label="大路由导航"
+        :style="{ '--ring-rotation': ringRotation }"
+        @wheel.prevent="handleRouteRingWheel"
+      >
       <RouterLink
         v-for="(card, index) in routeCards"
         :key="card.to"
@@ -121,5 +122,6 @@ function getRouteCardStyle(index: number) {
         <span class="home-nav-arrow">↗</span>
       </RouterLink>
     </nav>
+    </div>
   </div>
 </template>

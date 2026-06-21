@@ -9,12 +9,16 @@ const { observe } = useScrollReveal()
 
 <template>
   <div class="life-view page-stack" :ref="observe">
-    <PageSectionHeader
-      code="LIFE"
-      title="生活片段"
-      description="不只记录效率和技术，也留下阅读、生活、情绪和节奏感。"
-    />
+    <div class="reveal">
+      <PageSectionHeader
+        code="LIFE"
+        title="生活片段"
+        description="不只记录效率和技术，也留下阅读、生活、情绪和节奏感。"
+      />
+    </div>
 
-    <MarkdownRenderer :source="getPageContent('life')" />
+    <div class="reveal reveal-stagger-1">
+      <MarkdownRenderer :source="getPageContent('life')" />
+    </div>
   </div>
 </template>
