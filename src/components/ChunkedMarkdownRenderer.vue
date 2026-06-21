@@ -45,13 +45,10 @@ const SCROLL_GRACE_MS = 80
 
 const chunks = computed(() => splitMarkdownIntoChunks(props.source))
 const hasRemainingChunks = computed(() => renderedCount.value < chunks.value.length)
-const totalHeight = computed(() => chunkHeights.value.reduce((total, height) => total + height, 0))
-const topSpacerHeight = computed(() => getOffsetForIndex(rangeStart.value))
-const bottomSpacerHeight = computed(() => Math.max(0, totalHeight.value - getOffsetForIndex(rangeEnd.value)))
 const visibleChunks = computed<VisibleChunk[]>(() => {
   const result: VisibleChunk[] = []
 
-  for (let index = rangeStart.value; index < rangeEnd.value; index += 1) {
+  for (let index = 0; index < renderedCount.value; index += 1) {
     const html = htmlCache.value[index]
 
     if (html) {
@@ -467,7 +464,7 @@ function maybeRenderAheadForScroll() {
   }
 
   const { scrollTop, viewportHeight } = getScrollMetrics()
-  const loadedBottom = getOffsetForIndex(renderedCount.value)
+  const loadedBottom = containerRef.value?.scrollHeight ?? getOffsetForIndex(renderedCount.value)
 
   if (scrollTop + viewportHeight + OVERSCAN_PX > loadedBottom) {
     ensureRenderedChunks(renderedCount.value + SCROLL_CATCH_UP_BATCH)
@@ -634,8 +631,6 @@ defineExpose({ headings, ensureHeadingVisible })
 <template>
   <div class="chunked-markdown-renderer">
     <div ref="containerRef" class="markdown-wrapper markdown-body" @click="handleMarkdownClick">
-      <div v-if="topSpacerHeight" class="markdown-spacer" :style="{ height: `${topSpacerHeight}px` }"></div>
-
       <div
         v-for="chunk in visibleChunks"
         :key="chunk.index"
@@ -643,8 +638,6 @@ defineExpose({ headings, ensureHeadingVisible })
         :data-chunk-index="chunk.index"
         v-html="chunk.html"
       ></div>
-
-      <div v-if="bottomSpacerHeight" class="markdown-spacer" :style="{ height: `${bottomSpacerHeight}px` }"></div>
     </div>
 
     <div v-if="hasRemainingChunks" class="chunk-progress" aria-live="polite">
