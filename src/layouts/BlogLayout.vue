@@ -861,8 +861,6 @@ onUnmounted(() => {
   width: 100%;
   height: 70%;
   padding: 28px;
-  border: 1px solid color-mix(in srgb, var(--fui-border-color) 72%, transparent);
-  border-radius: 4px;
   overflow: hidden;
   background:
     linear-gradient(180deg, rgba(184, 255, 202, 0.045), transparent 22%),
@@ -872,9 +870,7 @@ onUnmounted(() => {
       rgba(184, 255, 202, 0.018) 10px
     ),
     color-mix(in srgb, var(--surface) 74%, transparent);
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.025),
-    inset 0 0 36px rgba(184, 255, 202, 0.03);
+  box-shadow: inset 0 0 36px rgba(184, 255, 202, 0.03);
   transition:
     width 0.46s ease,
     padding 0.46s ease,
@@ -888,26 +884,6 @@ onUnmounted(() => {
   height: 100%;
   min-height: 0;
   padding-block: 18px;
-}
-
-.left-panel-shell::before,
-.left-panel-shell::after {
-  content: "";
-  position: absolute;
-  left: 18px;
-  right: 18px;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--fui-cyan), transparent);
-  opacity: 0.34;
-  pointer-events: none;
-}
-
-.left-panel-shell::before {
-  top: 16px;
-}
-
-.left-panel-shell::after {
-  bottom: 16px;
 }
 
 .left-panel-hero {
