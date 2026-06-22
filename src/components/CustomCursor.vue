@@ -25,6 +25,7 @@ let hoverProbeRaf = 0
 let lastFrameX = -16
 let lastFrameY = -16
 let lastHoverProbeAt = 0
+let idleCheckId = 0
 
 const HOVER_PROBE_INTERVAL = 80
 const CURSOR_UPDATE_DELAY_MS = 50
@@ -226,6 +227,17 @@ function onFocusChange(e: FocusEvent) {
   scheduleCursorUpdate()
 }
 
+function onAnyInput() {
+  scheduleCursorUpdate()
+}
+
+function idleCursorCheck(deadline: IdleDeadline) {
+  if (deadline.timeRemaining() > 0 || deadline.didTimeout) {
+    updateHoverTarget()
+  }
+  idleCheckId = requestIdleCallback(idleCursorCheck, { timeout: 300 })
+}
+
 onMounted(() => {
   updateLocatorPosition()
   placeCursorFrame(mouseX - 16, mouseY - 16)
@@ -236,6 +248,11 @@ onMounted(() => {
   window.addEventListener('resize', onPointerContextChange, { passive: true })
   window.addEventListener('resize', scheduleCursorSync, { passive: true })
   window.addEventListener('scroll', scheduleCursorSync, { passive: true, capture: true })
+  document.addEventListener('wheel', onAnyInput, { passive: true })
+  document.addEventListener('mousedown', onAnyInput, { passive: true })
+  document.addEventListener('mouseup', onAnyInput, { passive: true })
+  document.addEventListener('keyup', onAnyInput, { passive: true })
+  idleCheckId = requestIdleCallback(idleCursorCheck, { timeout: 300 })
 })
 
 onUnmounted(() => {
@@ -246,6 +263,11 @@ onUnmounted(() => {
   window.removeEventListener('resize', onPointerContextChange)
   window.removeEventListener('resize', scheduleCursorSync)
   window.removeEventListener('scroll', scheduleCursorSync, true)
+  document.removeEventListener('wheel', onAnyInput)
+  document.removeEventListener('mousedown', onAnyInput)
+  document.removeEventListener('mouseup', onAnyInput)
+  document.removeEventListener('keyup', onAnyInput)
+  if (idleCheckId) cancelIdleCallback(idleCheckId)
   if (shrinkRaf) cancelAnimationFrame(shrinkRaf)
   if (syncRaf) cancelAnimationFrame(syncRaf)
   if (moveRaf) cancelAnimationFrame(moveRaf)
