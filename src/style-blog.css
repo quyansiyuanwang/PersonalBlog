@@ -1737,7 +1737,7 @@ body::before {
 
 /* ── Page Transition ── */
 .page-enter-active {
-  transition: opacity 0.35s ease, transform 0.35s ease;
+  transition: opacity 0.3s ease, transform 0.3s ease;
 }
 
 .page-leave-active {
@@ -1746,12 +1746,12 @@ body::before {
 
 .page-enter-from {
   opacity: 0;
-  transform: translateY(12px) scale(0.98);
+  transform: translateX(28px);
 }
 
 .page-leave-to {
   opacity: 0;
-  transform: translateY(-8px) scale(0.98);
+  transform: translateX(-28px);
 }
 
 

@@ -33,6 +33,7 @@ const ScrollMinimap = defineAsyncComponent(
 );
 
 const route = useRoute();
+const routeKey = computed(() => String(route.name ?? route.path.split('/')[1] ?? route.path));
 const leftPanelCollapsed = ref(false);
 const isPostRoute = computed(() => route.path.startsWith("/post"));
 const isLeftPanelHalfCollapsed = ref(false);
@@ -1070,70 +1071,69 @@ onUnmounted(() => {
           </section>
         </aside>
 
-        <section class="content-panel shell-enter-3">
-          <div class="content-panel-shell">
-            <div class="content-panel-head">
-              <div>
-                <p class="rail-label">
-                  ROUTE <span class="path-sep">://</span>
-                  {{ getRouteDisplayLabel(route.path) }}
-                </p>
+        <section class="content-panel">
+          <Transition name="page" mode="out-in" appear>
+            <div
+              class="content-panel-shell"
+              :key="routeKey"
+            >
+              <div class="content-panel-head">
+                <div>
+                  <p class="rail-label">
+                    ROUTE <span class="path-sep">://</span>
+                    {{ getRouteDisplayLabel(route.path) }}
+                  </p>
+                </div>
+                <form
+                  class="route-search"
+                  role="search"
+                  @submit.prevent="submitRouteSearch"
+                >
+                  <span class="route-search-prefix">SEARCH</span>
+                  <input
+                    v-model="routeSearchQuery"
+                    type="search"
+                    autocomplete="off"
+                    spellcheck="false"
+                    placeholder="pages / posts"
+                    aria-label="搜索页面和文章"
+                    @focus="routeSearchFocused = true"
+                    @blur="routeSearchFocused = false"
+                  />
+                  <Transition name="route-search-pop">
+                    <div
+                      v-if="showRouteSearchResults"
+                      class="route-search-results"
+                    >
+                      <button
+                        v-for="(item, index) in routeSearchResults"
+                        :key="item.to"
+                        type="button"
+                        class="route-search-result"
+                        :style="{ '--result-index': index }"
+                        @mousedown.prevent="goToRouteSearchItem(item)"
+                      >
+                        <strong>{{ item.title }}</strong>
+                        <small>{{ item.subtitle }}</small>
+                      </button>
+                      <p
+                        v-if="routeSearchResults.length === 0"
+                        class="route-search-empty"
+                      >
+                        NO SIGNAL
+                      </p>
+                    </div>
+                  </Transition>
+                </form>
               </div>
-              <form
-                class="route-search"
-                role="search"
-                @submit.prevent="submitRouteSearch"
-              >
-                <span class="route-search-prefix">SEARCH</span>
-                <input
-                  v-model="routeSearchQuery"
-                  type="search"
-                  autocomplete="off"
-                  spellcheck="false"
-                  placeholder="pages / posts"
-                  aria-label="搜索页面和文章"
-                  @focus="routeSearchFocused = true"
-                  @blur="routeSearchFocused = false"
-                />
-                <Transition name="route-search-pop">
-                  <div
-                    v-if="showRouteSearchResults"
-                    class="route-search-results"
-                  >
-                    <button
-                      v-for="(item, index) in routeSearchResults"
-                      :key="item.to"
-                      type="button"
-                      class="route-search-result"
-                      :style="{ '--result-index': index }"
-                      @mousedown.prevent="goToRouteSearchItem(item)"
-                    >
-                      <strong>{{ item.title }}</strong>
-                      <small>{{ item.subtitle }}</small>
-                    </button>
-                    <p
-                      v-if="routeSearchResults.length === 0"
-                      class="route-search-empty"
-                    >
-                      NO SIGNAL
-                    </p>
-                  </div>
-                </Transition>
-              </form>
-            </div>
 
-            <div ref="contentScrollRef" class="content-panel-scroll">
-              <RouterView v-slot="{ Component }">
-                <Transition name="page" mode="out-in">
+              <div ref="contentScrollRef" class="content-panel-scroll">
+                <RouterView v-slot="{ Component }">
                   <Suspense>
                     <div class="route-view-root">
                       <component
                         :is="Component"
-                        :key="
-                          String(
-                            route.name ?? route.path.split('/')[1] ?? route.path,
-                          )
-                        "
+                        :key="routeKey"
                       />
                     </div>
                     <template #fallback>
@@ -1150,11 +1150,11 @@ onUnmounted(() => {
                       </div>
                     </template>
                   </Suspense>
-                </Transition>
-              </RouterView>
+                </RouterView>
+              </div>
+              <ScrollMinimap :scroll-target="contentScrollRef" />
             </div>
-            <ScrollMinimap :scroll-target="contentScrollRef" />
-          </div>
+          </Transition>
         </section>
       </main>
     </div>
