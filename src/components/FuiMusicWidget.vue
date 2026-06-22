@@ -253,9 +253,12 @@ function loadTrack(idx: number) {
     audio.pause();
     audio.src = getTrackUrl(idx);
     audio.load();
-    // Don't call playAudio() here — wait for canplay event,
-    // so the audio is actually ready and play() won't reject
-    if (!shouldResume) {
+    // Try to play immediately — succeeds if audio is cached/quick-loading.
+    // If play() rejects (not yet loaded), pendingPlayback triggers a retry
+    // in handleCanPlay once the audio is ready.
+    if (shouldResume) {
+      playAudio();
+    } else {
       isPlaybackRequested.value = false;
       setAudioSignalMode("PAUSE");
     }
@@ -267,7 +270,8 @@ function togglePlayback() {
   const audio = audioRef.value;
   if (!audio) return;
 
-  if (isPlaying.value) {
+  // Check actual audio element state as source of truth
+  if (isPlaying.value || !audio.paused) {
     isPlaybackRequested.value = false;
     audio.pause();
     return;
@@ -313,6 +317,12 @@ function handleTimeUpdate() {
   const a = audioRef.value;
   if (!a) return;
   currentTime.value = a.currentTime;
+  // Sync isPlaying with actual audio element state.
+  // Catches races where a play() promise resolves but the
+  // isPlaying state was overwritten by a stale catch handler.
+  if (isPlaying.value !== !a.paused) {
+    isPlaying.value = !a.paused;
+  }
 }
 function handlePlay() {
   isPlaying.value = true;
@@ -353,7 +363,9 @@ function handleLoadStart() {
 function handleCanPlay() {
   isLoading.value = false;
   trackReady[currentIndex.value] = true;
-  if (playOnReady || pendingPlayback) {
+  // Retry playback if a prior play() rejected because audio wasn't ready,
+  // or if this is a track switch waiting for the new track to load
+  if (pendingPlayback || playOnReady) {
     playOnReady = false;
     pendingPlayback = false;
     playAudio();
