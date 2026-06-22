@@ -33,7 +33,9 @@ const ScrollMinimap = defineAsyncComponent(
 );
 
 const route = useRoute();
-const routeKey = computed(() => String(route.name ?? route.path.split('/')[1] ?? route.path));
+const routeKey = computed(() =>
+  String(route.name ?? route.path.split("/")[1] ?? route.path),
+);
 const leftPanelCollapsed = ref(false);
 const isPostRoute = computed(() => route.path.startsWith("/post"));
 const isLeftPanelHalfCollapsed = ref(false);
@@ -103,6 +105,14 @@ const {
 } = useTocState();
 
 const navigationItems = [
+  {
+    name: "返回",
+    to: "",
+    label: "↓",  // css旋转后朝左
+    jump: false,
+    fn: () => router.back(),
+    hide: false,
+  },
   { name: "首页", to: "/home", label: "HOME", jump: true, hide: false },
   { name: "归档", to: "/archive", label: "ARCHIVE", jump: true, hide: false },
   { name: "标签", to: "/tags", label: "TAGS", jump: true, hide: false },
@@ -116,8 +126,8 @@ const navigationItems = [
   },
   {
     name: "返回",
-    to: "/back",
-    label: "BACK",
+    to: "",
+    label: "ROUTES",
     jump: false,
     fn: () => router.replace("/"),
     hide: false,
@@ -722,9 +732,10 @@ watch(isPostRoute, (shouldHalfCollapse) => {
   const panel = panelShell?.parentElement;
   if (panel) {
     const panelHeight = panel.getBoundingClientRect().height;
-    const targetHeight = shouldHalfCollapse && showToc.value
-      ? getExpandedPostLeftHeight(panelHeight)
-      : getExpandedLeftHeight(panelHeight);
+    const targetHeight =
+      shouldHalfCollapse && showToc.value
+        ? getExpandedPostLeftHeight(panelHeight)
+        : getExpandedLeftHeight(panelHeight);
 
     animateLeftPanelHeightTo(targetHeight);
   }
@@ -741,7 +752,9 @@ watch(showToc, () => {
     return;
   }
 
-  animateLeftPanelHeightTo(getTargetLeftHeight(panel.getBoundingClientRect().height));
+  animateLeftPanelHeightTo(
+    getTargetLeftHeight(panel.getBoundingClientRect().height),
+  );
 });
 
 watch(
@@ -814,7 +827,6 @@ onMounted(() => {
     });
   }
   particles.value = items;
-
 });
 
 onUnmounted(() => {
@@ -869,7 +881,9 @@ onUnmounted(() => {
       </div>
       <div class="status-bar-section status-bar-dynamic">
         <span class="status-bar-sep">|</span>
-        <span class="status-bar-subtitle" :title="subtitle">{{ subtitle }}</span>
+        <span class="status-bar-subtitle" :title="subtitle">{{
+          subtitle
+        }}</span>
         <button
           class="theme-toggle"
           type="button"
@@ -895,7 +909,11 @@ onUnmounted(() => {
       >
         <aside
           class="left-panel shell-enter-3"
-          :class="{ collapsed: leftPanelCollapsed, 'post-panel': isPostRoute, 'has-toc': showToc }"
+          :class="{
+            collapsed: leftPanelCollapsed,
+            'post-panel': isPostRoute,
+            'has-toc': showToc,
+          }"
         >
           <div ref="leftPanelShellRef" class="left-panel-shell">
             <div class="left-panel-cat-bg" aria-hidden="true">
@@ -951,7 +969,13 @@ onUnmounted(() => {
               <nav v-if="showToc" class="toc" aria-label="目录">
                 <div class="toc-title-row">
                   <h4 class="toc-title">目录</h4>
-                  <span>{{ tocReadyState.ready ? tocHeadings.length : tocReadyState.indexed }}/{{ tocHeadings.length }} SECTIONS</span>
+                  <span
+                    >{{
+                      tocReadyState.ready
+                        ? tocHeadings.length
+                        : tocReadyState.indexed
+                    }}/{{ tocHeadings.length }} SECTIONS</span
+                  >
                 </div>
                 <ul class="toc-list">
                   <li
@@ -985,8 +1009,7 @@ onUnmounted(() => {
             <div
               class="left-panel-footer"
               :class="{ hidden: leftPanelCollapsed }"
-            >
-            </div>
+            ></div>
             <button
               v-if="isCubeVisible"
               class="signal-cube-dragger"
@@ -1073,12 +1096,9 @@ onUnmounted(() => {
 
         <section class="content-panel">
           <Transition name="page" mode="out-in" appear>
-            <div
-              class="content-panel-shell"
-              :key="routeKey"
-            >
+            <div class="content-panel-shell" :key="routeKey">
               <div class="content-panel-head">
-                <div>
+                <div class="route-head-left">
                   <p class="rail-label">
                     ROUTE <span class="path-sep">://</span>
                     {{ getRouteDisplayLabel(route.path) }}
@@ -1131,13 +1151,14 @@ onUnmounted(() => {
                 <RouterView v-slot="{ Component }">
                   <Suspense>
                     <div class="route-view-root">
-                      <component
-                        :is="Component"
-                        :key="routeKey"
-                      />
+                      <component :is="Component" :key="routeKey" />
                     </div>
                     <template #fallback>
-                      <div class="page-loading-shell" aria-live="polite" aria-busy="true">
+                      <div
+                        class="page-loading-shell"
+                        aria-live="polite"
+                        aria-busy="true"
+                      >
                         <div class="page-loading-grid" aria-hidden="true">
                           <span></span>
                           <span></span>
@@ -1208,18 +1229,40 @@ onUnmounted(() => {
   border-radius: 2px;
   border: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
   background:
-    linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 24%, transparent), transparent),
+    linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in srgb, var(--accent) 24%, transparent),
+      transparent
+    ),
     color-mix(in srgb, var(--surface-strong) 72%, transparent);
   background-size: 220% 100%;
   animation: page-loading-scan 1.2s linear infinite;
 }
 
-.page-loading-grid span:nth-child(1) { width: 88px; }
-.page-loading-grid span:nth-child(2) { width: 118px; animation-delay: 0.08s; }
-.page-loading-grid span:nth-child(3) { width: 96px; animation-delay: 0.16s; }
-.page-loading-grid span:nth-child(4) { width: 124px; animation-delay: 0.24s; }
-.page-loading-grid span:nth-child(5) { width: 82px; animation-delay: 0.32s; }
-.page-loading-grid span:nth-child(6) { width: 108px; animation-delay: 0.4s; }
+.page-loading-grid span:nth-child(1) {
+  width: 88px;
+}
+.page-loading-grid span:nth-child(2) {
+  width: 118px;
+  animation-delay: 0.08s;
+}
+.page-loading-grid span:nth-child(3) {
+  width: 96px;
+  animation-delay: 0.16s;
+}
+.page-loading-grid span:nth-child(4) {
+  width: 124px;
+  animation-delay: 0.24s;
+}
+.page-loading-grid span:nth-child(5) {
+  width: 82px;
+  animation-delay: 0.32s;
+}
+.page-loading-grid span:nth-child(6) {
+  width: 108px;
+  animation-delay: 0.4s;
+}
 
 .page-loading-copy {
   margin: 0;
@@ -1254,6 +1297,44 @@ onUnmounted(() => {
   text-transform: uppercase;
   letter-spacing: 0.18em;
   font-size: 0.7rem;
+}
+
+.route-head-left {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.route-back-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  line-height: 1;
+  color: var(--accent);
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+  border-radius: 3px;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background 0.15s,
+    color 0.15s;
+  margin-bottom: 2px;
+}
+
+.route-back-btn:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.route-back-btn:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .route-search {
@@ -1305,7 +1386,11 @@ onUnmounted(() => {
   padding: 8px;
   border: 1px solid color-mix(in srgb, var(--fui-border-color) 86%, var(--line));
   background:
-    linear-gradient(135deg, color-mix(in srgb, var(--accent-soft) 70%, transparent), transparent 46%),
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--accent-soft) 70%, transparent),
+      transparent 46%
+    ),
     var(--surface-strong);
   box-shadow: 0 18px 36px color-mix(in srgb, var(--black) 20%, transparent);
   overflow: hidden;
@@ -1397,7 +1482,11 @@ onUnmounted(() => {
   border: 1px solid color-mix(in srgb, var(--fui-border-color) 70%, transparent);
   border-radius: 2px;
   background:
-    linear-gradient(180deg, color-mix(in srgb, var(--accent-soft) 76%, transparent), transparent),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--accent-soft) 76%, transparent),
+      transparent
+    ),
     var(--panel-overlay);
   color: color-mix(in srgb, var(--fui-cyan) 82%, var(--text-muted));
   font-family: var(--font-hud);
@@ -2947,7 +3036,8 @@ onUnmounted(() => {
     flex: 0 0 auto;
     min-width: 74px;
     padding: 8px 10px;
-    border: 1px solid color-mix(in srgb, var(--fui-border-color) 60%, transparent);
+    border: 1px solid
+      color-mix(in srgb, var(--fui-border-color) 60%, transparent);
     background: color-mix(in srgb, var(--surface) 72%, transparent);
     scroll-snap-align: start;
   }
