@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { renderMarkdown } from '../lib/markdown'
+import { useTheme } from '../lib/theme'
 
 export interface HeadingItem {
   id: string
@@ -16,6 +17,7 @@ const props = defineProps<{
 const containerRef = ref<HTMLDivElement | null>(null)
 const headings = ref<HeadingItem[]>([])
 const html = computed(() => renderMarkdown(props.source, { assetBase: props.assetBase }))
+const { theme } = useTheme()
 
 function extractHeadings() {
   const el = containerRef.value
@@ -51,10 +53,18 @@ async function renderMermaid() {
   const blocks = el.querySelectorAll<HTMLElement>('.mermaid:not([data-processed])')
   if (blocks.length === 0) return
 
+  // Store source text so it can be restored on theme change
+  blocks.forEach((block) => {
+    block.dataset.source = block.textContent?.trim() ?? ''
+  })
+
   try {
-    const mermaid = await import('mermaid')
-    mermaid.default.initialize({ startOnLoad: false, theme: 'neutral' })
-    await mermaid.default.run({ nodes: Array.from(blocks) })
+    const mermaidModule = await import('mermaid')
+    mermaidModule.default.initialize({
+      startOnLoad: false,
+      theme: theme.value === 'dark' ? 'dark' : 'neutral',
+    })
+    await mermaidModule.default.run({ nodes: Array.from(blocks) })
   } catch {
     // mermaid failed silently — raw code is still visible
   }
@@ -144,6 +154,23 @@ watch(html, () => {
   renderMermaid()
   // headings may render after mermaid, wait for DOM update
   nextTick(() => extractHeadings())
+})
+
+watch(theme, (newTheme, oldTheme) => {
+  if (newTheme === oldTheme) return
+  const el = containerRef.value
+  if (!el) return
+  const blocks = el.querySelectorAll<HTMLElement>('.mermaid[data-processed]')
+  blocks.forEach((block) => {
+    const source = block.dataset.source
+    if (source) {
+      block.textContent = source
+    }
+    delete block.dataset.processed
+  })
+  if (blocks.length > 0) {
+    renderMermaid()
+  }
 })
 
 defineExpose({ headings })

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { renderMarkdown } from "../lib/markdown";
+import { useTheme } from "../lib/theme";
 
 export interface HeadingItem {
   id: string;
@@ -39,6 +40,8 @@ const props = defineProps<{
   source: string;
   assetBase?: string;
 }>();
+
+const { theme } = useTheme();
 
 const containerRef = ref<HTMLDivElement | null>(null);
 const rangeStart = ref(0);
@@ -421,10 +424,10 @@ async function renderMermaid() {
     if (blocks.length === 0) return;
 
     try {
-      const mermaid = await import("mermaid");
-      mermaid.default.initialize({
+      const mermaidModule = await import("mermaid");
+      mermaidModule.default.initialize({
         startOnLoad: false,
-        theme: "neutral",
+        theme: theme.value === "dark" ? "dark" : "neutral",
         securityLevel: "loose",
       });
 
@@ -436,9 +439,12 @@ async function renderMermaid() {
             return;
           }
 
+          // Store source so it can be restored on theme change
+          block.dataset.source = source;
+
           try {
             const id = `mermaid-${Date.now()}-${index}-${Math.random().toString(36).slice(2)}`;
-            const { svg, bindFunctions } = await mermaid.default.render(
+            const { svg, bindFunctions } = await mermaidModule.default.render(
               id,
               source,
             );
@@ -1398,6 +1404,25 @@ watch(visibleChunkKey, () => {
   void nextTick(() => {
     schedulePostRenderWork();
   });
+});
+
+watch(theme, (newTheme, oldTheme) => {
+  if (newTheme === oldTheme) return;
+  const el = containerRef.value;
+  if (!el) return;
+  // Restore original source in all processed mermaid blocks so they
+  // re-render with the new theme
+  const blocks = el.querySelectorAll<HTMLElement>(".mermaid[data-processed]");
+  blocks.forEach((block) => {
+    const source = block.dataset.source;
+    if (source) {
+      block.textContent = source;
+    }
+    delete block.dataset.processed;
+  });
+  if (blocks.length > 0) {
+    void renderMermaid();
+  }
 });
 
 onBeforeUnmount(() => {
