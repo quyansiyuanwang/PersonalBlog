@@ -22,6 +22,13 @@ export const musicTracks: MusicTrack[] = [
     url: `${import.meta.env.BASE_URL}music/鸣潮先约电台,jixwang,R!NGemie - 自无垠处归航之星.m4a`,
   },
   {
+    id: "青花-周传雄",
+    title: "周传雄",
+    artist: "青花",
+    fileName: "青花 - 周传雄.m4a",
+    url: `${import.meta.env.BASE_URL}music/青花 - 周传雄.m4a`,
+  },
+  {
     id: "daisy-crown-empty-old-city-wuthering-waves",
     title: "Empty old City,Wuthering Waves,",
     artist: "Daisy Crown",
