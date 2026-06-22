@@ -41,6 +41,8 @@ const trackReady = reactive<boolean[]>(new Array(TRACK_COUNT).fill(false));
 let loadedTrackIdx = -1;
 let shouldPlayAfterLoad = false;
 let playRequestId = 0;
+let pendingPlayback = false;
+let playOnReady = false;
 
 // rotation loop
 let animationFrameId: number | null = null;
@@ -50,6 +52,7 @@ let lastFrameTime = 0;
 let audioContext: AudioContext | null = null;
 let analyserNode: AnalyserNode | null = null;
 let mediaSourceNode: MediaElementAudioSourceNode | null = null;
+let connectedAudioEl: HTMLAudioElement | null = null;
 let analyserFrameId: number | null = null;
 let frequencyData: Uint8Array<ArrayBuffer> | null = null;
 
@@ -115,21 +118,35 @@ function setupAudioAnalyser() {
     audioContext = new AudioContext();
   }
 
-  // Disconnect old nodes if recreating after track switch
+  // Disconnect old analyser (fresh reconnection each time)
   if (analyserNode) {
     try { analyserNode.disconnect(); } catch {}
-  }
-  if (mediaSourceNode) {
-    try { mediaSourceNode.disconnect(); } catch {}
+    analyserNode = null;
   }
 
-  mediaSourceNode = audioContext.createMediaElementSource(audio);
+  // If audio element changed (key-increment → DOM remount), discard old source node
+  if (mediaSourceNode && connectedAudioEl !== audio) {
+    try { mediaSourceNode.disconnect(); } catch {}
+    mediaSourceNode = null;
+    connectedAudioEl = null;
+  }
+
+  // Create source node only once per <audio> element lifetime
+  if (!mediaSourceNode) {
+    mediaSourceNode = audioContext.createMediaElementSource(audio);
+    connectedAudioEl = audio;
+  }
+
   analyserNode = audioContext.createAnalyser();
   analyserNode.fftSize = 256;
   analyserNode.smoothingTimeConstant = 0.72;
   mediaSourceNode.connect(analyserNode);
   analyserNode.connect(audioContext.destination);
   frequencyData = new Uint8Array(analyserNode.frequencyBinCount);
+
+  if (audioContext.state === "suspended") {
+    void audioContext.resume();
+  }
 
   return analyserNode;
 }
@@ -173,10 +190,6 @@ function startAnalyserLoop() {
   const analyser = setupAudioAnalyser();
   if (!analyser || analyserFrameId !== null) return;
 
-  if (audioContext?.state === "suspended") {
-    void audioContext.resume();
-  }
-
   analyser.getByteFrequencyData(
     frequencyData ?? new Uint8Array(analyser.frequencyBinCount),
   );
@@ -202,13 +215,15 @@ function playAudio() {
   const requestId = ++playRequestId;
   isPlaybackRequested.value = true;
   hasLoadError.value = false;
+  pendingPlayback = false;
   setAudioSignalMode("LOAD");
 
   audio.play().catch(() => {
     if (requestId !== playRequestId) return;
     isPlaybackRequested.value = false;
     isPlaying.value = false;
-    setAudioSignalMode("ERROR");
+    pendingPlayback = true;
+    setAudioSignalMode("LOAD");
   });
 }
 
@@ -220,6 +235,7 @@ function loadTrack(idx: number) {
 
   const shouldResume = shouldPlayAfterLoad || isPlaying.value;
   shouldPlayAfterLoad = false;
+  playOnReady = shouldResume;
 
   loadedTrackIdx = idx;
   currentTime.value = 0;
@@ -237,10 +253,9 @@ function loadTrack(idx: number) {
     audio.pause();
     audio.src = getTrackUrl(idx);
     audio.load();
-
-    if (shouldResume) {
-      playAudio();
-    } else {
+    // Don't call playAudio() here — wait for canplay event,
+    // so the audio is actually ready and play() won't reject
+    if (!shouldResume) {
       isPlaybackRequested.value = false;
       setAudioSignalMode("PAUSE");
     }
@@ -260,7 +275,9 @@ function togglePlayback() {
 
   const idx = currentIndex.value;
   if (loadedTrackIdx !== idx || !audio.src) {
+    shouldPlayAfterLoad = true;
     loadTrack(idx);
+    return;
   }
 
   playAudio();
@@ -302,11 +319,19 @@ function handlePlay() {
   isPlaybackRequested.value = false;
   isLoading.value = false;
   hasLoadError.value = false;
+  pendingPlayback = false;
+  playOnReady = false;
   setAudioSignalMode("PLAY");
+  // Restart loops — loadTrack may have stopped analyser,
+  // and watch(isPlaying) won't fire if isPlaying was already true
+  startRotationLoop();
+  startAnalyserLoop();
 }
 function handlePause() {
   isPlaying.value = false;
   isPlaybackRequested.value = false;
+  pendingPlayback = false;
+  playOnReady = false;
   setAudioSignalMode("PAUSE");
 }
 function handleEnded() {
@@ -328,6 +353,11 @@ function handleLoadStart() {
 function handleCanPlay() {
   isLoading.value = false;
   trackReady[currentIndex.value] = true;
+  if (playOnReady || pendingPlayback) {
+    playOnReady = false;
+    pendingPlayback = false;
+    playAudio();
+  }
 }
 
 function handleWaiting() {
@@ -342,6 +372,8 @@ function handleError() {
   isPlaybackRequested.value = false;
   isLoading.value = false;
   hasLoadError.value = true;
+  pendingPlayback = false;
+  playOnReady = false;
   setAudioSignalMode("ERROR");
 }
 
