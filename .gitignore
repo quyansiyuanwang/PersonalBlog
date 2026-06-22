@@ -27,8 +27,8 @@ dist-ssr
 *.flac
 music/source/
 
-# generated content manifests
-src/generated/content.ts
+# generated manifests
+src/generated
 
 # generated music copies
 public/music

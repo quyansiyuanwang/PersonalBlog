@@ -6,7 +6,7 @@ const currentDir = dirname(fileURLToPath(import.meta.url))
 const rootDir = resolve(currentDir, '..')
 const rootMusicDir = resolve(rootDir, 'music')
 const publicMusicDir = resolve(rootDir, 'public/music')
-const outputFile = resolve(rootDir, 'src/lib/music.ts')
+const outputFile = resolve(rootDir, 'src/generated/music.ts')
 const supportedExtensions = new Set(['.mp3', '.wav', '.ogg', '.m4a', '.aac'])
 const musicDir = existsSync(rootMusicDir) ? rootMusicDir : publicMusicDir
 

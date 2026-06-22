@@ -5,12 +5,14 @@
   "type": "module",
   "scripts": {
     "predev": "node scripts/generate-content-manifest.mjs && node scripts/generate-music-manifest.mjs",
-    "dev": "nodemon --watch src --watch content --ext ts,md --ignore src/generated/** --ignore src/lib/music.ts --exec \"pnpm run predev && vite\"",
+    "dev": "nodemon --watch src --watch content --ext ts,md --ignore src/generated/** --exec \"pnpm run predev && vite\"",
     "prebuild": "node scripts/generate-content-manifest.mjs && node scripts/generate-music-manifest.mjs",
     "build": "pnpm run prebuild && node scripts/generate-sitemap.mjs && vue-tsc -b && vite build",
     "postbuild": "node scripts/copy-404.mjs",
     "preview": "vite preview",
-    "music:convert": "node scripts/convert-music.mjs"
+    "music:convert": "node scripts/convert-music.mjs",
+    "music:manifest": "node scripts/generate-music-manifest.mjs",
+    "music:sync": "pnpm run music:convert && pnpm run music:manifest"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",
