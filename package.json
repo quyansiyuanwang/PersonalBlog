@@ -7,7 +7,7 @@
     "predev": "pnpm run content:manifest && pnpm run music:manifest",
     "dev": "nodemon --watch src --watch content --ext ts,md --ignore src/generated/** --exec \"pnpm run predev && vite\"",
     "content:manifest": "node scripts/generate-content-manifest.mjs",
-    "prebuild": "pnpm run content:manifest && pnpm run music:sync",
+    "prebuild": "pnpm run content:manifest && pnpm run music:manifest",
     "build": "pnpm run prebuild && node scripts/generate-sitemap.mjs && vue-tsc -b && vite build",
     "postbuild": "node scripts/copy-404.mjs",
     "preview": "vite preview",
