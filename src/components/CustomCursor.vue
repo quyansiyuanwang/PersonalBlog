@@ -227,10 +227,6 @@ function onFocusChange(e: FocusEvent) {
   scheduleCursorUpdate()
 }
 
-function onAnyInput() {
-  scheduleCursorUpdate()
-}
-
 function idleCursorCheck(deadline: IdleDeadline) {
   if (deadline.timeRemaining() > 0 || deadline.didTimeout) {
     updateHoverTarget()
@@ -248,10 +244,6 @@ onMounted(() => {
   window.addEventListener('resize', onPointerContextChange, { passive: true })
   window.addEventListener('resize', scheduleCursorSync, { passive: true })
   window.addEventListener('scroll', scheduleCursorSync, { passive: true, capture: true })
-  document.addEventListener('wheel', onAnyInput, { passive: true })
-  document.addEventListener('mousedown', onAnyInput, { passive: true })
-  document.addEventListener('mouseup', onAnyInput, { passive: true })
-  document.addEventListener('keyup', onAnyInput, { passive: true })
   idleCheckId = requestIdleCallback(idleCursorCheck, { timeout: 300 })
 })
 
@@ -263,10 +255,6 @@ onUnmounted(() => {
   window.removeEventListener('resize', onPointerContextChange)
   window.removeEventListener('resize', scheduleCursorSync)
   window.removeEventListener('scroll', scheduleCursorSync, true)
-  document.removeEventListener('wheel', onAnyInput)
-  document.removeEventListener('mousedown', onAnyInput)
-  document.removeEventListener('mouseup', onAnyInput)
-  document.removeEventListener('keyup', onAnyInput)
   if (idleCheckId) cancelIdleCallback(idleCheckId)
   if (shrinkRaf) cancelAnimationFrame(shrinkRaf)
   if (syncRaf) cancelAnimationFrame(syncRaf)
