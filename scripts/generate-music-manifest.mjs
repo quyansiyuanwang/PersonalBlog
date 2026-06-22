@@ -7,7 +7,7 @@ const rootDir = resolve(currentDir, '..')
 const rootMusicDir = resolve(rootDir, 'music')
 const publicMusicDir = resolve(rootDir, 'public/music')
 const outputFile = resolve(rootDir, 'src/lib/music.ts')
-const supportedExtensions = new Set(['.mp3', '.wav', '.ogg', '.flac', '.m4a', '.aac'])
+const supportedExtensions = new Set(['.mp3', '.wav', '.ogg', '.m4a', '.aac'])
 const musicDir = existsSync(rootMusicDir) ? rootMusicDir : publicMusicDir
 
 mkdirSync(publicMusicDir, { recursive: true })

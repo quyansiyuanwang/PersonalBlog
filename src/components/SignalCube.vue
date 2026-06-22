@@ -20,7 +20,6 @@ const {
   moveCubeDrag,
   stopCubeDrag,
   explodeSignalCube,
-  cleanup,
 } = useSignalCube(draggerRef);
 
 watch(
