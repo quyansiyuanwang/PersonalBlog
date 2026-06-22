@@ -64,6 +64,11 @@ Vue · TypeScript · Electron · React · AI Agent · MCP · Skill 封装 · Sub
 
 ## 联系
 
+- Blog(Current Site): [blog.qysyw.cn](https://blog.qysyw.cn)
+- AppWeb: [www.qysyw.cn](https://www.qysyw.cn)
+- Docs: [docs.qysyw.cn](https://docs.qysyw.cn)
+- StaticWeb: [static.qysyw.cn](https://static.qysyw.cn)
+- B站: [曲雁丝远望](https://space.bilibili.com/356255598)
 - WeChat: quyansiyuanwang
 - Email: [quyansiyuanwang@qq.com](mailto:quyansiyuanwang@qq.com)
 - GitHub: [quyansiyuanwang](https://github.com/quyansiyuanwang)
