@@ -6,7 +6,13 @@ defineProps<{
 }>();
 </script>
 
-<template></template>
+<template>
+  <div class="page-section-header">
+    <span v-if="code" class="eyebrow">{{ code }}</span>
+    <h1 v-if="title" class="single-title">{{ title }}</h1>
+    <p v-if="description" class="section-description">{{ description }}</p>
+  </div>
+</template>
 
 <style scoped>
 .page-section-header {

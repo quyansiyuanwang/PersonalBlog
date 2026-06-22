@@ -9,7 +9,8 @@
     "prebuild": "node scripts/generate-content-manifest.mjs && node scripts/generate-music-manifest.mjs",
     "build": "pnpm run prebuild && node scripts/generate-sitemap.mjs && vue-tsc -b && vite build",
     "postbuild": "node scripts/copy-404.mjs",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "music:convert": "node scripts/convert-music.mjs"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",

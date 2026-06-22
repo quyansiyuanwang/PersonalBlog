@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import PageSectionHeader from '../components/PageSectionHeader.vue'
-import MarkdownRenderer from '../components/MarkdownRenderer.vue'
-import { getPageContent } from '../lib/posts'
+import RadarContact from '../components/RadarContact.vue'
 import { useScrollReveal } from '../lib/scrollReveal'
 
 const { observe } = useScrollReveal()
@@ -18,7 +17,7 @@ const { observe } = useScrollReveal()
     </div>
 
     <div class="reveal reveal-stagger-1">
-      <MarkdownRenderer :source="getPageContent('contact')" />
+      <RadarContact />
     </div>
   </div>
 </template>
