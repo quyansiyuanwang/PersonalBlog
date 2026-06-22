@@ -108,7 +108,7 @@ const navigationItems = [
   {
     name: "返回",
     to: "",
-    label: "↓",  // css旋转后朝左
+    label: "↓", // css旋转后朝左
     jump: false,
     fn: () => router.back(),
     hide: false,
@@ -934,33 +934,35 @@ onUnmounted(() => {
                 <span class="lever-handle"></span>
               </span>
             </button>
-            <nav
-              v-if="route.name !== 'routes'"
-              class="diagonal-rail"
-              aria-label="主导航"
-            >
-              <div class="glow-frame" aria-hidden="true"></div>
-              <div class="glow-frame-inner" aria-hidden="true"></div>
-              <div class="diagonal-rail-inner">
-                <RouterLink
-                  v-for="(item, index) in navigationItems.filter(
-                    (i) => !i.hide,
-                  )"
-                  :key="item.jump ? item.to : ''"
-                  :to="item.jump ? item.to : ''"
-                  class="diagonal-link"
-                  :class="{ active: isActiveRoute(item.to) }"
-                  @click="item.fn?.()"
-                >
-                  <span class="nav-dot"></span>
-                  <span class="nav-card-index">{{
-                    String(index + 1).padStart(2, "0")
-                  }}</span>
-                  <span class="nav-label">{{ item.label }}</span>
-                  <span class="nav-sublabel">{{ item.name }}</span>
-                </RouterLink>
-              </div>
-            </nav>
+            <Transition name="rail-slide">
+              <nav
+                v-if="route.name !== 'routes'"
+                class="diagonal-rail"
+                aria-label="主导航"
+              >
+                <div class="glow-frame" aria-hidden="true"></div>
+                <div class="glow-frame-inner" aria-hidden="true"></div>
+                <div class="diagonal-rail-inner">
+                  <RouterLink
+                    v-for="(item, index) in navigationItems.filter(
+                      (i) => !i.hide,
+                    )"
+                    :key="item.jump ? item.to : ''"
+                    :to="item.jump ? item.to : ''"
+                    class="diagonal-link"
+                    :class="{ active: isActiveRoute(item.to) }"
+                    @click="item.fn?.()"
+                  >
+                    <span class="nav-dot"></span>
+                    <span class="nav-card-index">{{
+                      String(index + 1).padStart(2, "0")
+                    }}</span>
+                    <span class="nav-label">{{ item.label }}</span>
+                    <span class="nav-sublabel">{{ item.name }}</span>
+                  </RouterLink>
+                </div>
+              </nav>
+            </Transition>
             <!-- TOC in left panel -->
             <div
               class="left-panel-toc-wrap"
@@ -1335,6 +1337,29 @@ onUnmounted(() => {
 .route-back-btn:focus-visible {
   outline: 1px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* ── Diagonal Rail Slide Transition ── */
+.rail-slide-enter-active {
+  transition:
+    opacity 0.35s ease,
+    transform 0.35s ease;
+}
+
+.rail-slide-leave-active {
+  transition:
+    opacity 0.25s ease,
+    transform 0.25s ease;
+}
+
+.rail-slide-enter-from {
+  opacity: 0;
+  transform: translateX(24px);
+}
+
+.rail-slide-leave-to {
+  opacity: 0;
+  transform: translateX(24px);
 }
 
 .route-search {
