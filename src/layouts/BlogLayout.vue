@@ -137,19 +137,16 @@ watch(isPostRoute, (shouldHalfCollapse) => {
     ? getHalfCollapsedLeftWidth(shellWidth)
     : getExpandedLeftWidth(shellWidth);
 
-  animateLeftPanelTo(targetWidth);
-
   const panelShell = leftPanelShellRef.value;
   const panel = panelShell?.parentElement;
-  if (panel) {
-    const panelHeight = panel.getBoundingClientRect().height;
-    const targetHeight =
-      shouldHalfCollapse && showToc.value
-        ? getExpandedPostLeftHeight(panelHeight)
-        : getExpandedLeftHeight(panelHeight);
+  const panelHeight = panel ? panel.getBoundingClientRect().height : 0;
+  const targetHeight = panel
+    ? shouldHalfCollapse
+      ? getExpandedPostLeftHeight(panelHeight)
+      : getTargetLeftHeight(panelHeight)
+    : undefined;
 
-    animateLeftPanelHeightTo(targetHeight);
-  }
+  animateLeftPanelTo(targetWidth, targetHeight);
 });
 
 watch(showToc, () => {

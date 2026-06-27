@@ -53,20 +53,27 @@ export function usePanelGeometry(
     isDesktop.value = !window.matchMedia("(max-width: 820px)").matches;
   }
 
-  function animateLeftPanelTo(targetWidth: number) {
-    const shellMain = shellMainRef.value;
+  function getComputedLeftRatio(shellMain: HTMLElement) {
+    const columns = window.getComputedStyle(shellMain).gridTemplateColumns;
+    const leftColumn = Number.parseFloat(columns.split(" ")[0] ?? "0");
+    const shellWidth = shellMain.getBoundingClientRect().width;
 
-    if (!shellMain) {
-      return;
-    }
-
-    if (shouldUseVerticalShellLayout()) {
-      if (leftPanelAnimationFrame) {
-        cancelAnimationFrame(leftPanelAnimationFrame);
-        leftPanelAnimationFrame = null;
+    if (!shellWidth || !leftColumn) {
+      if (leftPanelCollapsed.value) {
+        return getCollapsedLeftWidth() / Math.max(shellWidth, 1);
       }
 
-      shellMain.style.removeProperty("grid-template-columns");
+      return isLeftPanelHalfCollapsed.value ? 0.22 : 0.4;
+    }
+
+    return leftColumn / shellWidth;
+  }
+
+  function animateLeftPanelTo(targetWidth: number, targetHeight?: number) {
+    const shellMain = shellMainRef.value;
+    const shell = leftPanelShellRef.value;
+
+    if (!shellMain) {
       return;
     }
 
@@ -74,9 +81,23 @@ export function usePanelGeometry(
       cancelAnimationFrame(leftPanelAnimationFrame);
       leftPanelAnimationFrame = null;
     }
+    if (targetHeight !== undefined && leftPanelHeightAnimationFrame) {
+      cancelAnimationFrame(leftPanelHeightAnimationFrame);
+      leftPanelHeightAnimationFrame = null;
+    }
+
+    if (shouldUseVerticalShellLayout()) {
+      shellMain.style.removeProperty("grid-template-columns");
+      if (shell) shell.style.removeProperty("height");
+      return;
+    }
 
     const shellWidth = shellMain.getBoundingClientRect().width;
     const startWidth = shellWidth * getComputedLeftRatio(shellMain);
+    const startHeight = targetHeight !== undefined && shell
+      ? shell.getBoundingClientRect().height
+      : 0;
+    const finalHeight = targetHeight !== undefined && shell ? targetHeight : startHeight;
     const duration = 520;
     const startedAt = performance.now();
 
@@ -88,6 +109,11 @@ export function usePanelGeometry(
 
       shellMain.style.gridTemplateColumns = `${currentWidth}px minmax(0, 1fr)`;
 
+      if (targetHeight !== undefined && shell) {
+        const currentHeight = startHeight + (finalHeight - startHeight) * eased;
+        shell.style.height = `${currentHeight}px`;
+      }
+
       if (progress < 1) {
         leftPanelAnimationFrame = requestAnimationFrame(tick);
         return;
@@ -95,6 +121,10 @@ export function usePanelGeometry(
 
       leftPanelAnimationFrame = null;
       shellMain.style.gridTemplateColumns = `${targetWidth}px minmax(0, 1fr)`;
+      if (targetHeight !== undefined && shell) {
+        leftPanelHeightAnimationFrame = null;
+        shell.style.height = `${finalHeight}px`;
+      }
     };
 
     leftPanelAnimationFrame = requestAnimationFrame(tick);
@@ -140,22 +170,6 @@ export function usePanelGeometry(
     };
 
     leftPanelHeightAnimationFrame = requestAnimationFrame(tick);
-  }
-
-  function getComputedLeftRatio(shellMain: HTMLElement) {
-    const columns = window.getComputedStyle(shellMain).gridTemplateColumns;
-    const leftColumn = Number.parseFloat(columns.split(" ")[0] ?? "0");
-    const shellWidth = shellMain.getBoundingClientRect().width;
-
-    if (!shellWidth || !leftColumn) {
-      if (leftPanelCollapsed.value) {
-        return getCollapsedLeftWidth() / Math.max(shellWidth, 1);
-      }
-
-      return isLeftPanelHalfCollapsed.value ? 0.22 : 0.4;
-    }
-
-    return leftColumn / shellWidth;
   }
 
   function syncLeftPanelWidth() {
