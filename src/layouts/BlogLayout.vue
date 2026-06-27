@@ -92,7 +92,6 @@ const {
   getTargetLeftHeight,
   getHalfCollapsedLeftWidth,
   getExpandedLeftWidth,
-  getExpandedLeftHeight,
   getExpandedPostLeftHeight,
   cleanup: cleanupGeometry,
 } = usePanelGeometry(

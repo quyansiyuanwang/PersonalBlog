@@ -20,12 +20,6 @@ const totalTags = computed(() => tags.value.length)
 const totalReadingTime = computed(() =>
 	posts.reduce((sum, p) => sum + p.readingTime, 0)
 )
-const dateRange = computed(() => {
-	if (posts.length === 0) return ''
-	const dates = posts.map((p) => p.frontmatter.date).sort()
-	return `${dates[0].slice(0, 4)} — ${dates[dates.length - 1].slice(0, 4)}`
-})
-
 const bootPhase = ref<'booting' | 'online'>('booting')
 const bootLines = ref<string[]>([])
 const bootLog = [
@@ -125,7 +119,7 @@ const stats = computed(() => [
 						</div>
 						<div class="tele-list">
 							<div
-								v-for="(stat, idx) in stats"
+								v-for="(stat, _idx) in stats"
 								:key="stat.label"
 								class="tele-row"
 							>
